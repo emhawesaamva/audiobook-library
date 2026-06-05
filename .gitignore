@@ -1,0 +1,27 @@
+# Environment — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Vite cache
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Agent skills (local installs)
+.agents/
+
+# Claude Code tooling
+.claude/
