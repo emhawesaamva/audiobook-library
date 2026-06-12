@@ -21,6 +21,11 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/* Larger view: the UI is rem-based, so scaling the root scales everything. */
+html.size-large {
+  font-size: 20px; /* 125% of the 16px default */
+}
+
 body {
   @apply bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans;
 }
