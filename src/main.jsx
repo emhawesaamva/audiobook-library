@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import supabase from "./lib/supabase.js";
 import Login from "./components/Login.jsx";
 import App from "./App.jsx";
+import PublicProfile from "./components/PublicProfile.jsx";
 import { btnPrimary, inputCls, labelCls, Dialog } from "./components/shared.jsx";
 import "./index.css";
 
@@ -70,4 +71,10 @@ function AuthGate() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<AuthGate />);
+// Route /share/{profileId} to the public read-only view; everything else through AuthGate.
+const shareMatch = window.location.pathname.match(/^\/share\/([^/]+)/);
+if (shareMatch) {
+  createRoot(document.getElementById("root")).render(<PublicProfile profileId={shareMatch[1]} />);
+} else {
+  createRoot(document.getElementById("root")).render(<AuthGate />);
+}
