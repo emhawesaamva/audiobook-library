@@ -20,6 +20,68 @@ function Field({ label, children }) {
   return <div><label className={labelCls}>{label}</label>{children}</div>;
 }
 
+// Chip-style tag editor with suggestions drawn from tags used elsewhere in
+// the library. Enter or comma commits the current text; Backspace on an
+// empty input removes the last chip.
+function TagInput({ value, onChange, suggestions = [] }) {
+  const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
+  const chosen = new Set(value.map((t) => t.toLowerCase()));
+  const matches = text.trim()
+    ? suggestions.filter((t) => !chosen.has(t.toLowerCase()) && t.toLowerCase().includes(text.trim().toLowerCase())).slice(0, 6)
+    : suggestions.filter((t) => !chosen.has(t.toLowerCase())).slice(0, 6);
+
+  const commit = (raw) => {
+    const t = raw.trim();
+    if (t && !chosen.has(t.toLowerCase())) onChange([...value, t]);
+    setText("");
+  };
+
+  return (
+    <div className="relative">
+      <div className={`${inputCls} flex min-h-[38px] flex-wrap items-center gap-1 !py-1.5`}>
+        {value.map((t) => (
+          <span key={t} className="flex items-center gap-1 rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
+            {t}
+            <button
+              onClick={() => onChange(value.filter((x) => x !== t))}
+              className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
+              aria-label={`Remove ${t}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(text); }
+            if (e.key === "Backspace" && !text && value.length) onChange(value.slice(0, -1));
+          }}
+          placeholder={value.length ? "" : "cozy, slow-burn, found family…"}
+          className="min-w-[80px] flex-1 bg-transparent text-sm outline-none"
+        />
+      </div>
+      {focused && matches.length > 0 && (
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          {matches.map((t) => (
+            <button
+              key={t}
+              onMouseDown={(e) => { e.preventDefault(); commit(t); }}
+              className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BookForm({
   book, isSub = false, seriesList = [], recommenders = [], onSave, onSaveSeries, onClose, onToast,
 }) {
@@ -364,13 +426,8 @@ export default function BookForm({
                   {recommenders.map((r) => <option key={r} value={r} />)}
                 </datalist>
               </Field>
-              <Field label="Tags (comma-separated)">
-                <input
-                  value={(f.tags ?? []).join(", ")}
-                  onChange={(e) => s("tags", e.target.value.split(",").map((t) => t.trim()).filter(Boolean))}
-                  className={inputCls}
-                  placeholder="cozy, slow-burn, found family"
-                />
+              <Field label="Tags">
+                <TagInput value={f.tags ?? []} onChange={(tags) => s("tags", tags)} suggestions={allTags} />
               </Field>
               <Field label="Notes">
                 <textarea rows={3} value={f.notes ?? ""} onChange={(e) => s("notes", e.target.value)} className={inputCls} />

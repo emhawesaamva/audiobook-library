@@ -92,6 +92,15 @@ export default function App({ session, onSignOut }) {
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "light");
+  const [prefs, setPrefs] = useState({}); // user_settings.settings jsonb (view, libby_key, …)
+
+  const savePrefs = (patch) => {
+    setPrefs((p) => {
+      const merged = { ...p, ...patch };
+      db.saveUserSettings(uid, { settings: merged }).catch(() => {});
+      return merged;
+    });
+  };
   const [toast, setToastRaw] = useState(null);
   const [banner, setBanner] = useState(null);      // persistent status / error line
 
@@ -128,6 +137,7 @@ export default function App({ session, onSignOut }) {
         setAppSettings(app);
         if (settings.theme) setTheme(settings.theme);
         if (settings.settings?.view) setView(settings.settings.view);
+        setPrefs(settings.settings ?? {});
         setProfiles(profs);
         const first =
           profs.find((p) => p.id === settings.default_profile_id) ?? profs[0] ?? null;
@@ -439,6 +449,7 @@ export default function App({ session, onSignOut }) {
 
   const cardProps = (b) => ({
     book: b,
+    libbyKey: prefs.libby_key,
     onEdit: () => (b._parentSeries ? setSeriesOpen(b._parentSeries.id) : setForm({ book: b })),
     onDelete: () => removeBook(b),
     onOpen: b.is_series ? () => openSeries(b.id) : undefined,
@@ -607,7 +618,7 @@ export default function App({ session, onSignOut }) {
                   {[["covers", Grid3x3], ["cards", LayoutGrid], ["list", List]].map(([v, Icon]) => (
                     <button
                       key={v}
-                      onClick={() => { setView(v); db.saveUserSettings(uid, { settings: { view: v } }).catch(() => {}); }}
+                      onClick={() => { setView(v); savePrefs({ view: v }); }}
                       className={`rounded-md px-2 py-1 text-sm transition cursor-pointer ${view === v ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-600"}`}
                       title={v}
                     >
@@ -736,6 +747,8 @@ export default function App({ session, onSignOut }) {
           }}
           onDeleteProfile={deleteActiveProfile}
           onImportBooks={importBooks}
+          libbyKey={prefs.libby_key ?? ""}
+          onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
           onClose={() => setSettingsOpen(false)}
           onSignOut={onSignOut}
           onToast={setToast}
