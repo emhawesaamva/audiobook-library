@@ -3,7 +3,7 @@
 // which library the panel configures (it also switches the active library).
 import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow, StatusChip } from "./shared.jsx";
-import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
+import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, parseAudibleJSON, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
 import { identifyBookList } from "../lib/ai.js";
 import { Upload, Download, ClipboardList, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
@@ -26,6 +26,7 @@ export default function Settings({
 
   // Keep the rename field in sync when a different library is selected.
   useEffect(() => { setName(profile.name); setConfirming(false); }, [profile.id, profile.name]);
+  const [guideOpen, setGuideOpen] = useState(null); // "audible" | "goodreads" | "libby" | null
   const [importing, setImporting] = useState(null); // {total, done} during import
   const [refreshing, setRefreshing] = useState(null); // {total, done, filled} during metadata refresh
   const refreshAbort = useRef(false);
@@ -132,7 +133,10 @@ export default function Settings({
           }
         } catch { /* enrichment is best-effort */ }
       }
-      toCreate.push({ ...b, ...enriched, genre: b.genre ?? enriched.genre ?? "Other", _series: series });
+      const fallbackSeries = !series && b.series_title
+        ? { asin: `series:${b.series_title.toLowerCase()}`, title: b.series_title, position: b.series_position ?? null }
+        : null;
+      toCreate.push({ ...b, ...enriched, genre: b.genre ?? enriched.genre ?? "Other", _series: series ?? fallbackSeries });
       setImporting((p) => ({ ...p, done: p.done + 1 }));
     }
     try {
@@ -198,15 +202,15 @@ export default function Settings({
       format === "goodreads" ? parseGoodreadsCSV(text)
       : format === "libby" ? parseLibbyCSV(text)
       : format === "libby-json" ? parseLibbyJSON(text)
-      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV or a Libby timeline export (CSV or JSON)"] };
+      : format === "audible" ? parseAudibleJSON(text)
+      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV, Libby export, or Audible Library Extractor JSON"] };
     const { books: parsed, errors, note } = parsedResult;
     if (!parsed.length) {
       onToast?.({ text: errors[0] ?? "No books found in file", isError: true });
       return;
     }
-    await importParsed(parsed, format === "goodreads" ? "Goodreads" : "Libby", {
-      note, skippedRows: errors.length,
-    });
+    const sourceLabel = format === "goodreads" ? "Goodreads" : format === "audible" ? "Audible" : "Libby";
+    await importParsed(parsed, sourceLabel, { note, skippedRows: errors.length });
   };
 
   const section = "border-t border-zinc-100 pt-4 mt-4 dark:border-zinc-800";
@@ -218,7 +222,7 @@ export default function Settings({
           <p className="font-medium">Your library is ready! Two things worth doing right away:</p>
           <ol className="mt-1 list-decimal pl-5 text-zinc-600 dark:text-zinc-300">
             <li>Pick who this library is for — it tunes the AI recommendations.</li>
-            <li><strong>Bring your books in</strong> — import a Goodreads or Libby export, or just paste any list of titles from your notes.</li>
+            <li><strong>Bring your books in</strong> — import from Audible, Goodreads, or Libby, or just paste any list of titles from your notes.</li>
           </ol>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">All of this stays available later under the ⚙ settings icon.</p>
         </div>
@@ -287,7 +291,7 @@ export default function Settings({
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => fileRef.current?.click()} className={btnSecondary}><Upload className="h-4 w-4" /> Import (Goodreads / Libby)</button>
+              <button onClick={() => fileRef.current?.click()} className={btnSecondary}><Upload className="h-4 w-4" /> Import</button>
               <button onClick={() => setPaste({ step: "input", text: "" })} className={btnSecondary}><ClipboardList className="h-4 w-4" /> Paste a list</button>
               <button onClick={() => download(`${profile.name}-library.csv`, booksToCSV(books), "text/csv")} className={btnSecondary}><Download className="h-4 w-4" /> Export CSV</button>
               <button onClick={() => download(`${profile.name}-library.json`, JSON.stringify(books, null, 2), "application/json")} className={btnSecondary}><Download className="h-4 w-4" /> Export JSON</button>
@@ -298,9 +302,68 @@ export default function Settings({
               Enrich imports with covers, narrators & durations (slower)
             </label>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Accepts a Goodreads library export (CSV) or a Libby timeline export (CSV or JSON) — the format is detected
-              automatically. Imports are additive, duplicates are skipped, and books from the same series are grouped together.
+              Accepts an Audible Library Extractor JSON, Goodreads CSV, or Libby timeline export (CSV or JSON) — format is detected
+              automatically. Imports are additive, duplicates are skipped, and series are grouped together.
             </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { id: "audible", label: "Audible" },
+                { id: "goodreads", label: "Goodreads" },
+                { id: "libby", label: "Libby" },
+              ].map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => setGuideOpen(guideOpen === g.id ? null : g.id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    guideOpen === g.id
+                      ? "border-accent-500 bg-accent-50 text-accent-700 dark:bg-accent-700/15 dark:text-accent-400"
+                      : "border-zinc-300 text-zinc-500 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                  }`}
+                >
+                  How to export from {g.label}
+                </button>
+              ))}
+            </div>
+            {guideOpen === "audible" && (
+              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
+                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
+                  <li>Install the free <strong>Audible Library Extractor</strong> extension for Chrome or Edge.</li>
+                  <li>Log in to audible.com and navigate to your library.</li>
+                  <li>Click the extension icon — it will scan your library automatically.</li>
+                  <li>When finished, click <strong>Save data</strong> to download a <code>.json</code> file.</li>
+                  <li>Return here, click Import, and select that file.</li>
+                </ol>
+                <a
+                  href="https://github.com/joonaspaakko/audible-library-extractor"
+                  target="_blank" rel="noopener noreferrer"
+                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
+                >
+                  Get Audible Library Extractor →
+                </a>
+              </div>
+            )}
+            {guideOpen === "goodreads" && (
+              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
+                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
+                  <li>Log in to <strong>goodreads.com</strong>.</li>
+                  <li>Go to <strong>My Books</strong>, then select <strong>Import and Export</strong> from the left sidebar.</li>
+                  <li>Click <strong>Export Library</strong> — a <code>.csv</code> file will download.</li>
+                  <li>Return here, click Import, and select that file.</li>
+                </ol>
+                <p className="mt-2 text-zinc-500 dark:text-zinc-400">Your ratings, shelves (read/reading/want-to-read), and read dates are all imported.</p>
+              </div>
+            )}
+            {guideOpen === "libby" && (
+              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
+                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
+                  <li>Open the <strong>Libby app</strong> or visit <strong>libbyapp.com</strong>.</li>
+                  <li>Go to your shelf, then tap the <strong>Activity</strong> (timeline) tab.</li>
+                  <li>Tap the share/export icon and choose <strong>Export your data</strong> to download a <code>.json</code> file. (A CSV export is also available from the same menu.)</li>
+                  <li>Return here, click Import, and select that file.</li>
+                </ol>
+                <p className="mt-2 text-zinc-500 dark:text-zinc-400">Only audiobook activity is imported — ebooks and magazines are skipped automatically.</p>
+              </div>
+            )}
           </>
         )}
       </div>
