@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { flattenBooks, fmtDuration } from "../lib/bookUtils.js";
 import { inputCls, labelCls } from "./shared.jsx";
-import { Ruler, Repeat, Ban } from "lucide-react";
+import { Ruler, Repeat, Ban, Users, Flame } from "lucide-react";
 
 function StatCard({ value, label, sub }) {
   return (
@@ -98,6 +98,22 @@ export default function Stats({ books, goals, onSetGoal }) {
     const longest = finishedEver.reduce((a, b) => ((b.duration_minutes ?? 0) > (a?.duration_minutes ?? 0) ? b : a), null);
     const dnf = flat.filter((b) => b.status === "dnf").length;
 
+    // "You vs the crowd": books carrying both your rating and a public one.
+    const pairs = finishedEver.filter((b) => Number(b.rating) > 0 && Number(b.goodreads_rating) > 0);
+    let crowd = null;
+    if (pairs.length >= 3) {
+      const delta = (b) => Number(b.rating) - Number(b.goodreads_rating);
+      const avgDelta = pairs.reduce((s, b) => s + delta(b), 0) / pairs.length;
+      const agree = pairs.filter((b) => Math.abs(delta(b)) <= 0.5).length;
+      const spiciest = pairs.reduce((a, b) => (Math.abs(delta(b)) > Math.abs(delta(a)) ? b : a));
+      crowd = {
+        n: pairs.length,
+        avgDelta: Math.round(avgDelta * 10) / 10,
+        agreePct: Math.round((agree / pairs.length) * 100),
+        spiciest,
+      };
+    }
+
     return {
       finishedEver: finishedEver.length,
       finishedThisYear: finishedThisYear.length,
@@ -106,7 +122,7 @@ export default function Stats({ books, goals, onSetGoal }) {
       topAuthors: tally(finishedEver, "author"),
       topNarrators: tally(finishedEver, "narrator"),
       topGenres: tally(finishedEver, "genre"),
-      dist, longest, dnf,
+      dist, longest, dnf, crowd,
       rereads: flat.reduce((s, b) => s + (b.reread_count ?? 0), 0),
     };
   }, [flat, year]);
@@ -172,6 +188,24 @@ export default function Stats({ books, goals, onSetGoal }) {
           )}
           <p className="flex items-center gap-2"><Repeat className="h-4 w-4 text-zinc-500 dark:text-zinc-400" /> <span>Re-listens: <strong>{stats.rereads}</strong></span></p>
           <p className="flex items-center gap-2"><Ban className="h-4 w-4 text-zinc-500 dark:text-zinc-400" /> <span>Did-not-finish: <strong>{stats.dnf}</strong></span></p>
+          {stats.crowd && (
+            <>
+              <p className="flex items-center gap-2"><Users className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                <span>
+                  You vs the crowd: you agree <strong>{stats.crowd.agreePct}%</strong> of the time
+                  {stats.crowd.avgDelta !== 0 && (
+                    <> and rate <strong>{Math.abs(stats.crowd.avgDelta)}★ {stats.crowd.avgDelta < 0 ? "tougher" : "kinder"}</strong></>
+                  )}
+                  {" "}({stats.crowd.n} books compared)
+                </span>
+              </p>
+              <p className="flex items-center gap-2"><Flame className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                <span>
+                  Hottest take: <strong>{stats.crowd.spiciest.title}</strong> — you: {Number(stats.crowd.spiciest.rating)}★, crowd: {Number(stats.crowd.spiciest.goodreads_rating)}★
+                </span>
+              </p>
+            </>
+          )}
           {!stats.longest && <p className="text-zinc-500 dark:text-zinc-400">Add durations to books (autofill does this) to unlock listening-time stats.</p>}
         </div>
       </div>

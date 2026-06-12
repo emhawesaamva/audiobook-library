@@ -38,5 +38,8 @@ export function resultToBook(r) {
   };
   if (r.genre) out.genre = r.genre;
   if (r.subgenre) out.subgenre = r.subgenre;
+  // Persist the public average in the (legacy-named) goodreads_rating column;
+  // the app treats it as "public rating" regardless of source.
+  if (r.public_rating?.average) out.goodreads_rating = r.public_rating.average;
   return out;
 }
