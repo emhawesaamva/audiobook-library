@@ -86,6 +86,26 @@ export function flattenBooks(books) {
   return books.flatMap((b) => (b.is_series ? (b.books ?? []) : [b]));
 }
 
+// Normalized key for "is this the same book?" title comparisons: lowercase,
+// subtitle (after a colon) dropped, punctuation stripped, leading article gone.
+export function titleKey(t) {
+  return (t ?? "")
+    .toLowerCase()
+    .split(":")[0]
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/^(the|a|an) /, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function sameTitle(a, b) {
+  const ka = titleKey(a), kb = titleKey(b);
+  if (!ka || !kb) return false;
+  return ka === kb ||
+    (ka.length >= 8 && kb.startsWith(ka)) ||
+    (kb.length >= 8 && ka.startsWith(kb));
+}
+
 export function audibleSearchUrl(book) {
   const q = encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim()).replace(/%20/g, "+");
   return `https://www.audible.com/search?keywords=${q}`;

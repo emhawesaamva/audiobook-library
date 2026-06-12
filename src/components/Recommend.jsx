@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { Dialog, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
-import { flattenBooks, libbySearchUrl } from "../lib/bookUtils.js";
+import { flattenBooks, libbySearchUrl, sameTitle } from "../lib/bookUtils.js";
 
 // Shown when the user clicks a Libby badge without a library code configured.
 function LibbySetupDialog({ book, onSave, onClose }) {
@@ -83,9 +83,10 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
     }
     return () => { cancelled = true; };
   }, [libbyKey, res]);
-  const existingTitles = new Set(
-    [...books, ...flattenBooks(books)].map((b) => b.title.toLowerCase())
-  );
+  // Fuzzy "already in the library" check: catches subtitle/punctuation/article
+  // variants ("Project Hail Mary: A Novel" vs "Project Hail Mary").
+  const libraryTitles = [...books, ...flattenBooks(books)].map((b) => b.title);
+  const inLibrary = (title) => libraryTitles.some((t) => sameTitle(t, title));
   const lovedAuthors = [...new Set(books.filter((b) => b.loved || Number(b.rating) >= 5).map((b) => b.author).filter(Boolean))];
 
   const go = async () => {
@@ -95,7 +96,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
     setLastQ(q);
     try {
       const result = await fetchRecommendations({ books, profileName, ageGroup, query: q, model });
-      result.recommendations = result.recommendations.filter((r) => !existingTitles.has(r.title.toLowerCase()));
+      result.recommendations = result.recommendations.filter((r) => !inLibrary(r.title));
       setRes(result);
     } catch (e) {
       setRes({ error: true, msg: e.message });
@@ -112,8 +113,9 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
         books, profileName, ageGroup, model,
         query: `${lastQ}\n\nGive me 5 MORE recommendations for the same request. Do not repeat any of these already-suggested titles: ${shown.join(", ")}.`,
       });
-      const seen = new Set([...existingTitles, ...shown.map((t) => t.toLowerCase())]);
-      const fresh = result.recommendations.filter((r) => !seen.has(r.title.toLowerCase()));
+      const fresh = result.recommendations.filter(
+        (r) => !inLibrary(r.title) && !shown.some((t) => sameTitle(t, r.title))
+      );
       setRes((p) => ({ ...p, recommendations: [...p.recommendations, ...fresh] }));
       if (!fresh.length) onToast?.({ text: "No new suggestions this round — try refining the search" });
     } catch (e) {
