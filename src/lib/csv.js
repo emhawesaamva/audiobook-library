@@ -70,6 +70,98 @@ export function parseGoodreadsCSV(text) {
   return { books, errors };
 }
 
+// ---- Libby timeline import ----
+// CSV header (verified against real exports; order varies — parse by name):
+// cover,title,author,publisher,isbn,timestamp,activity,details,library
+// The JSON variant (share.libbyapp.com export) adds cover.format, letting us
+// skip ebooks/magazines. Borrowed -> Read (start = borrow, finish = return);
+// titles only ever placed on hold -> Want to Listen.
+
+function libbyEventsToBooks(events) {
+  const byBook = new Map();
+  for (const e of events) {
+    if (!e.title) continue;
+    const key = `${e.title.toLowerCase()}|${(e.author ?? "").toLowerCase()}`;
+    if (!byBook.has(key)) {
+      byBook.set(key, { title: e.title, author: e.author || null, isbn: e.isbn || null, borrows: [], returns: [], holds: 0 });
+    }
+    const b = byBook.get(key);
+    const act = (e.activity ?? "").toLowerCase();
+    if (act === "borrowed") b.borrows.push(e.when);
+    else if (act === "returned") b.returns.push(e.when);
+    else if (act.startsWith("placed")) b.holds++;
+    if (!b.isbn && e.isbn) b.isbn = e.isbn;
+  }
+  const iso = (d) => (d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null);
+  const books = [];
+  for (const b of byBook.values()) {
+    if (b.borrows.length) {
+      const started = new Date(Math.min(...b.borrows.map((d) => d.getTime())));
+      const finished = b.returns.length ? new Date(Math.max(...b.returns.map((d) => d.getTime()))) : null;
+      books.push({
+        title: b.title, author: b.author, isbn: b.isbn, status: "read",
+        date_started: iso(started), date_finished: finished ? iso(finished) : null,
+        reread_count: Math.max(0, b.borrows.length - 1),
+        recommended_by: null, notes: null,
+      });
+    } else if (b.holds) {
+      books.push({ title: b.title, author: b.author, isbn: b.isbn, status: "wanttoread" });
+    }
+  }
+  return books;
+}
+
+export function parseLibbyCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { books: [], errors: ["Empty file"] };
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (n) => header.indexOf(n);
+  const iTitle = col("title"), iAuthor = col("author"), iIsbn = col("isbn"),
+    iWhen = col("timestamp"), iAct = col("activity");
+  if (iTitle === -1 || iAct === -1 || iWhen === -1)
+    return { books: [], errors: ["Not a Libby export: missing title/activity/timestamp columns"] };
+  const events = rows.slice(1).map((r) => ({
+    title: (r[iTitle] ?? "").trim(),
+    author: (r[iAuthor] ?? "").trim(),
+    isbn: (r[iIsbn] ?? "").replace(/[="]/g, "").trim(),
+    activity: (r[iAct] ?? "").trim(),
+    when: new Date((r[iWhen] ?? "").trim()), // "August 27, 2023 11:46"
+  }));
+  return { books: libbyEventsToBooks(events), errors: [] };
+}
+
+export function parseLibbyJSON(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { return { books: [], errors: ["Invalid JSON file"] }; }
+  const timeline = data.timeline ?? [];
+  if (!Array.isArray(timeline) || !timeline.length)
+    return { books: [], errors: ["No timeline entries found in JSON"] };
+  let skipped = 0;
+  const events = [];
+  for (const t of timeline) {
+    const format = t.cover?.format;
+    if (format && format !== "audiobook") { skipped++; continue; }
+    events.push({
+      title: t.title?.text ?? t.title ?? "",
+      author: t.author ?? "",
+      isbn: t.isbn ?? "",
+      activity: t.activity ?? "",
+      when: new Date(t.timestamp),
+    });
+  }
+  const books = libbyEventsToBooks(events);
+  return { books, errors: [], note: skipped ? `${skipped} non-audiobook entries skipped` : null };
+}
+
+// Sniff which importer fits a file's content.
+export function detectImportFormat(text, filename = "") {
+  if (filename.endsWith(".json") || text.trimStart().startsWith("{")) return "libby-json";
+  const header = (parseCSV(text.slice(0, 2000))[0] ?? []).map((h) => h.trim().toLowerCase());
+  if (header.includes("exclusive shelf") || (header.includes("my rating") && header.includes("title"))) return "goodreads";
+  if (header.includes("activity") && header.includes("timestamp")) return "libby";
+  return null;
+}
+
 const EXPORT_COLUMNS = [
   "title", "author", "narrator", "genre", "subgenre", "status", "rating", "loved",
   "year", "duration_minutes", "date_started", "date_finished", "series_title",

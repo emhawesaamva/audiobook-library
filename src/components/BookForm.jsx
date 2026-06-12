@@ -21,7 +21,7 @@ function Field({ label, children }) {
 }
 
 export default function BookForm({
-  book, isSub = false, seriesList = [], onSave, onSaveSeries, onClose, onToast,
+  book, isSub = false, seriesList = [], recommenders = [], onSave, onSaveSeries, onClose, onToast,
 }) {
   const isNew = !book?.id;
   const [f, setF] = useState(book ? { ...EMPTY, ...book } : { ...EMPTY });
@@ -320,15 +320,49 @@ export default function BookForm({
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Length (minutes)">
-                  <input type="number" min="0" value={f.duration_minutes ?? ""} onChange={(e) => s("duration_minutes", e.target.value ? Number(e.target.value) : null)} className={inputCls} />
+                <Field label="Length">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number" min="0"
+                      value={f.duration_minutes ? Math.floor(f.duration_minutes / 60) : ""}
+                      onChange={(e) => {
+                        const h = Number(e.target.value) || 0;
+                        const m = (f.duration_minutes ?? 0) % 60;
+                        s("duration_minutes", h * 60 + m || null);
+                      }}
+                      className={inputCls}
+                      aria-label="Hours"
+                    />
+                    <span className="text-xs text-zinc-500">h</span>
+                    <input
+                      type="number" min="0" max="59"
+                      value={f.duration_minutes ? f.duration_minutes % 60 : ""}
+                      onChange={(e) => {
+                        const m = Math.min(59, Number(e.target.value) || 0);
+                        const h = Math.floor((f.duration_minutes ?? 0) / 60);
+                        s("duration_minutes", h * 60 + m || null);
+                      }}
+                      className={inputCls}
+                      aria-label="Minutes"
+                    />
+                    <span className="text-xs text-zinc-500">m</span>
+                  </div>
                 </Field>
                 <Field label="Year">
                   <input type="number" value={f.year ?? ""} onChange={(e) => s("year", e.target.value ? Number(e.target.value) : null)} className={inputCls} />
                 </Field>
               </div>
               <Field label="Recommended by">
-                <input value={f.recommended_by ?? ""} onChange={(e) => s("recommended_by", e.target.value)} className={inputCls} placeholder="Friend, podcast, Claude…" />
+                <input
+                  list="recommenders-list"
+                  value={f.recommended_by ?? ""}
+                  onChange={(e) => s("recommended_by", e.target.value)}
+                  className={inputCls}
+                  placeholder="Friend, podcast, Claude…"
+                />
+                <datalist id="recommenders-list">
+                  {recommenders.map((r) => <option key={r} value={r} />)}
+                </datalist>
               </Field>
               <Field label="Tags (comma-separated)">
                 <input
