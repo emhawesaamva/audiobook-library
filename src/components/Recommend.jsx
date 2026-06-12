@@ -207,6 +207,14 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
                     {publicRatings[r.title].average} ({publicRatings[r.title].count.toLocaleString()})
                   </span>
+                  {publicRatings[r.title].polarizing && (
+                    <span
+                      className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                      title="Listeners either love this or hate it — the rating spread is unusually wide"
+                    >
+                      ⚡ polarizing
+                    </span>
+                  )}
                 </span>
               )}
             </div>

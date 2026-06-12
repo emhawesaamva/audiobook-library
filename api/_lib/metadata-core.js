@@ -63,10 +63,19 @@ function normalizeProduct(p) {
   const series = (p.series ?? []).find((s) => s.sequence) ?? (p.series ?? [])[0] ?? null;
   const img = p.product_images ? Object.values(p.product_images)[0] : null;
   const dist = p.rating?.overall_distribution;
+  // Polarizing = meaningful sample where the low end is unusually fat for
+  // Audible's 5-skewed norm (people either love it or hate it).
+  const lowShare = dist?.num_ratings
+    ? (dist.num_one_star_ratings + dist.num_two_star_ratings) / dist.num_ratings
+    : 0;
   return {
     ...categoriesToGenre(p.category_ladders),
     public_rating: dist?.num_ratings
-      ? { average: Math.round(dist.average_rating * 10) / 10, count: dist.num_ratings }
+      ? {
+          average: Math.round(dist.average_rating * 10) / 10,
+          count: dist.num_ratings,
+          polarizing: dist.num_ratings >= 200 && lowShare >= 0.12,
+        }
       : null,
     asin: p.asin,
     title: p.title,

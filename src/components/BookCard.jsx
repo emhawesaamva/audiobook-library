@@ -113,6 +113,11 @@ export function BookCardGrid({ book, libbyKey, onEdit, onDelete, onOpen, onQueue
               : book.duration_minutes && <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
           </div>
           {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
+          {book.status === "wanttoread" && Number(book.goodreads_rating) > 0 && Number(book.goodreads_rating) < 3.8 && (
+            <div className="mt-1 text-xs text-amber-700/80 dark:text-amber-500/80">
+              the crowd is lukewarm on this one · {Number(book.goodreads_rating)}★
+            </div>
+          )}
         </div>
         <div className="relative shrink-0">
           <MenuButton open={menu} setOpen={setMenu} />

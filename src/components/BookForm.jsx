@@ -83,7 +83,7 @@ function TagInput({ value, onChange, suggestions = [] }) {
 }
 
 export default function BookForm({
-  book, isSub = false, seriesList = [], recommenders = [], onSave, onSaveSeries, onClose, onToast,
+  book, isSub = false, seriesList = [], recommenders = [], allTags = [], onSave, onSaveSeries, onClose, onToast,
 }) {
   const isNew = !book?.id;
   const [f, setF] = useState(book ? { ...EMPTY, ...book } : { ...EMPTY });
