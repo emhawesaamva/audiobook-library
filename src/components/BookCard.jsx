@@ -1,7 +1,7 @@
 // Book renderers for the three library views: cover grid, card grid, list row.
 // All three share the same action menu (edit / delete / queue / links).
 import { useState, useRef, useEffect } from "react";
-import { Stars, StatusChip, Cover, ConfirmRow } from "./shared.jsx";
+import { Stars, StatusChip, Cover } from "./shared.jsx";
 import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart } from "lucide-react";
 import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl,
@@ -23,8 +23,24 @@ function ActionMenu({ book, onEdit, onDelete, onQueueToggle, onClose }) {
     <div ref={ref} onClick={(e) => e.stopPropagation()}
       className="absolute right-1 top-8 z-20 w-48 animate-fade-up rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
       {confirming ? (
-        <div className="p-2">
-          <ConfirmRow message="Delete?" onConfirm={() => { onClose(); onDelete(); }} onCancel={() => setConfirming(false)} />
+        <div className="p-2.5">
+          <p className="mb-2 text-sm leading-snug">
+            Delete <span className="font-semibold">“{book.title}”</span>?
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => { onClose(); onDelete(); }}
+              className="flex-1 rounded-md bg-red-600 px-2 py-1.5 text-xs font-bold text-white hover:bg-red-700 cursor-pointer"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       ) : (
         <>
