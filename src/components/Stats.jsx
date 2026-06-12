@@ -60,6 +60,11 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
 
+  // Pronoun helpers derived from possessive ("Your" vs "My")
+  const vsSubject = possessive === "My" ? "Me" : "You"; // "Me vs the crowd"
+  const agreeSubject = possessive === "My" ? "I" : "you"; // "I agree X%"
+  const poss = possessive.toLowerCase(); // "my" / "your" for inline use
+
   const flat = useMemo(() => flattenBooks(books), [books]);
 
   const years = useMemo(() => {
@@ -215,13 +220,13 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
             <>
               <p className="flex items-center gap-2"><Users className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
                 <span>
-                  You vs the crowd: you agree <strong>{stats.crowd.agreePct}%</strong> of the time
+                  {vsSubject} vs the crowd: {agreeSubject} agree <strong>{stats.crowd.agreePct}%</strong> of the time
                   {stats.crowd.avgDelta !== 0 && (
                     <> and rate <strong>{Math.abs(stats.crowd.avgDelta)}★ {stats.crowd.avgDelta < 0 ? "tougher" : "kinder"}</strong></>
                   )}
                   {" "}({stats.crowd.n} books compared)
                   {stats.crowd.yearAgreePct != null && (
-                    <> · in {year}: <strong>{stats.crowd.yearAgreePct}%</strong>{stats.crowd.yearAgreePct < stats.crowd.agreePct ? " — your spiciest year yet?" : ""}</>
+                    <> · in {year}: <strong>{stats.crowd.yearAgreePct}%</strong>{stats.crowd.yearAgreePct < stats.crowd.agreePct ? ` — ${poss} spiciest year yet?` : ""}</>
                   )}
                 </span>
               </p>
@@ -258,7 +263,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 <Gem className="h-3.5 w-3.5" /> {possessive} hidden gems
               </div>
-              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">You loved these well beyond the crowd — your best personal recommendations.</p>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{vsSubject} loved these well beyond the crowd — {poss} best personal recommendations.</p>
               <div className="space-y-1.5 text-sm">
                 {stats.gems.map((b) => (
                   <div key={b.id} className="flex items-baseline justify-between gap-2">
