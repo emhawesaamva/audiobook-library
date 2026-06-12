@@ -503,6 +503,24 @@ export default function App({ session, onSignOut }) {
     });
   }, [books, filter, genre, search, minRating, sortBy]);
 
+  // ---- infinite scroll ----
+  const PAGE_SIZE = 40;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+  // Reset to first page whenever the filtered set changes.
+  useEffect(() => setVisibleCount(PAGE_SIZE), [filter, genre, search, minRating, sortBy, activeId]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisibleCount((n) => n + PAGE_SIZE); },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  });
+  const page = useMemo(() => shown.slice(0, visibleCount), [shown, visibleCount]);
+
   const stats = useMemo(() => {
     const read = books.filter((b) => getStatus(b) === "read");
     return {
@@ -752,17 +770,26 @@ export default function App({ session, onSignOut }) {
                 )}
               </div>
             ) : view === "covers" ? (
-              <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-                {shown.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+                  {page.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             ) : view === "list" ? (
-              <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                {shown.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                  {page.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {shown.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             )}
           </>
         )}
