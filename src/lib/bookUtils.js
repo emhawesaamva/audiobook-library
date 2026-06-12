@@ -36,11 +36,27 @@ export const STATUS_SHORT = {
   dnf: "DNF",
 };
 
-export const GENRES = [
-  "Science Fiction", "Fantasy", "Horror", "Thriller", "Mystery",
-  "Romance", "Historical Fiction", "Literary Fiction", "Nonfiction",
-  "Memoir", "Biography", "Young Adult", "Children", "Other",
-];
+// Genre taxonomy modeled on Audible's top-level categories (the source of our
+// metadata) merged with Goodreads/StoryGraph conventions. Grouped for the
+// form's select; GENRES stays a flat list for any code that needs one.
+export const GENRE_GROUPS = {
+  Fiction: [
+    "Science Fiction", "Fantasy", "Horror", "Thriller", "Mystery", "Crime",
+    "Romance", "Historical Fiction", "Literary Fiction", "Contemporary Fiction",
+    "Classics", "Action & Adventure", "Comedy", "Westerns", "Short Stories",
+    "Poetry & Drama",
+  ],
+  Nonfiction: [
+    "Memoir", "Biography", "History", "True Crime", "Self-Help",
+    "Business & Finance", "Science & Technology", "Health & Wellness",
+    "Religion & Spirituality", "Politics & Society", "Sports & Outdoors",
+    "Travel", "Arts & Entertainment",
+  ],
+  "Young Listeners": ["Young Adult", "Middle Grade", "Children"],
+  "": ["Other"],
+};
+
+export const GENRES = Object.values(GENRE_GROUPS).flat();
 
 export function fmtDuration(minutes) {
   if (!minutes) return null;
