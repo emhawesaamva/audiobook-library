@@ -14,7 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -665,8 +665,9 @@ export default function App({ session, onSignOut }) {
             <UpNext queue={queue} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
             {queue.length === 0 && crowdPick && (
               <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-accent-200/70 bg-accent-50/50 px-3 py-2.5 text-sm dark:border-accent-700/30 dark:bg-accent-700/5">
-                <span>
-                  🎯 Your queue is empty — the crowd says start with{" "}
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 shrink-0 text-accent-600" />
+                  Your queue is empty — the crowd says start with{" "}
                   <strong>{crowdPick.title}</strong> ({Number(crowdPick.goodreads_rating)}★)
                 </span>
                 <button onClick={() => queueToggle(crowdPick)} className="ml-auto shrink-0 rounded-md bg-accent-500 px-2.5 py-1 text-xs font-bold text-zinc-900 hover:bg-accent-400 cursor-pointer">
