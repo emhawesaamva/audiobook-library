@@ -22,7 +22,7 @@ html {
 }
 
 body {
-  @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans;
+  @apply bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

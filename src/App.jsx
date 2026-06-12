@@ -14,6 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -33,10 +34,10 @@ function CreateFirstLibrary({ onCreate }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mb-2 text-3xl">📚</div>
+      <div className="w-full max-w-sm rounded-xl border border-zinc-300/90 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <LibraryBig className="mx-auto mb-2 h-9 w-9 text-accent-500" />
         <h2 className="text-lg font-semibold">Create your first library</h2>
-        <p className="mb-4 mt-1 text-sm text-zinc-500">
+        <p className="mb-4 mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Libraries keep collections separate — one per person, or per genre, or however you like.
         </p>
         <input
@@ -57,7 +58,7 @@ function CreateFirstLibrary({ onCreate }) {
 }
 
 const FILTERS = [
-  ["all", "All"], ["recommended", "★ Rec"], ["loved", "⭐ Loved"],
+  ["all", "All"], ["recommended", "Rec"], ["loved", "Loved"],
   ["read", "Read"], ["reading", "Listening"], ["want", "Want"], ["dnf", "DNF"],
 ];
 
@@ -284,7 +285,7 @@ export default function App({ session, onSignOut }) {
   const startListening = guard(async (book) => {
     await db.updateBook(book.id, { status: "reading", date_started: today(), queue_position: null });
     await refreshBooks();
-    setToast({ text: `Started "${book.title}" 🎧` });
+    setToast({ text: `Started "${book.title}"` });
   });
 
   // ---- profiles ----
@@ -400,7 +401,7 @@ export default function App({ session, onSignOut }) {
       key={t}
       onClick={() => setTab(t)}
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
-        tab === t ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        tab === t ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
       }`}
     >
       {label}
@@ -408,7 +409,7 @@ export default function App({ session, onSignOut }) {
   );
 
   if (profiles === null) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-zinc-400">Loading…</div>;
+    return <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">Loading…</div>;
   }
 
   if (!profiles.length) {
@@ -432,9 +433,9 @@ export default function App({ session, onSignOut }) {
   return (
     <div className="min-h-screen pb-16">
       {/* ---- top bar ---- */}
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
+      <header className="sticky top-0 z-40 border-b border-zinc-300/90 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5">
-          <span className="text-lg">🎧</span>
+          <Headphones className="h-5 w-5 text-accent-500" />
           {/* library switcher */}
           <div className="flex items-center gap-1">
             {profiles.map((p) => (
@@ -444,7 +445,7 @@ export default function App({ session, onSignOut }) {
                 className={`rounded-lg px-2.5 py-1 text-sm font-medium transition cursor-pointer ${
                   p.id === activeId
                     ? "bg-accent-100 text-accent-700 dark:bg-accent-700/20 dark:text-accent-400"
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 {p.name}
@@ -462,7 +463,7 @@ export default function App({ session, onSignOut }) {
                 <button onClick={addProfile} className="rounded-lg bg-accent-500 px-2 py-1 text-xs font-bold text-zinc-900 cursor-pointer">Add</button>
               </span>
             ) : (
-              <button onClick={() => setAddingProfile(true)} className="rounded-lg border border-dashed border-zinc-300 px-2 py-1 text-xs text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 dark:border-zinc-700 cursor-pointer">
+              <button onClick={() => setAddingProfile(true)} className="rounded-lg border border-dashed border-zinc-300 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 dark:border-zinc-700 cursor-pointer">
                 + new
               </button>
             )}
@@ -475,15 +476,15 @@ export default function App({ session, onSignOut }) {
                 setTheme(next);
                 db.saveUserSettings(uid, { theme: next }).catch(() => {});
               }}
-              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer"
+              className="rounded-lg p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer"
               title="Toggle theme"
             >
-              {theme === "dark" ? "☀️" : "🌙"}
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <button onClick={() => setSettingsOpen(true)} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" title="Settings">
-              ⚙️
+            <button onClick={() => setSettingsOpen(true)} className="rounded-lg p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" title="Settings">
+              <SettingsIcon className="h-4 w-4" />
             </button>
-            <button onClick={() => setForm({ book: null })} className={`${btnPrimary} !py-1.5`}>+ Add</button>
+            <button onClick={() => setForm({ book: null })} className={`${btnPrimary} !py-1.5`}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
       </header>
@@ -493,7 +494,7 @@ export default function App({ session, onSignOut }) {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">{activeProfile?.name}'s Library</h1>
-            <div className="mt-1 flex gap-4 text-xs text-zinc-400">
+            <div className="mt-1 flex gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.read}</strong> finished</span>
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.reading}</strong> listening</span>
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.want}</strong> wanted</span>
@@ -530,7 +531,7 @@ export default function App({ session, onSignOut }) {
                     key={f}
                     onClick={() => setFilter(f)}
                     className={`rounded-md px-2 py-1 text-xs font-semibold transition cursor-pointer ${
-                      filter === f ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      filter === f ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
                   >
                     {label}
@@ -553,27 +554,27 @@ export default function App({ session, onSignOut }) {
                   {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
                 </select>
                 {/* view toggle */}
-                <div className="flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
-                  {[["covers", "▦"], ["cards", "▤"], ["list", "☰"]].map(([v, icon]) => (
+                <div className="flex rounded-lg border border-zinc-300/90 p-0.5 dark:border-zinc-700">
+                  {[["covers", Grid3x3], ["cards", LayoutGrid], ["list", List]].map(([v, Icon]) => (
                     <button
                       key={v}
                       onClick={() => { setView(v); db.saveUserSettings(uid, { settings: { view: v } }).catch(() => {}); }}
-                      className={`rounded-md px-2 py-1 text-sm transition cursor-pointer ${view === v ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-400 hover:text-zinc-600"}`}
+                      className={`rounded-md px-2 py-1 text-sm transition cursor-pointer ${view === v ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-600"}`}
                       title={v}
                     >
-                      {icon}
+                      <Icon className="h-4 w-4" />
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="mb-3 text-xs text-zinc-400">{shown.length} of {books.length} entries</div>
+            <div className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{shown.length} of {books.length} entries</div>
 
             {!booksReady ? (
               <div className="flex justify-center py-16"><Spinner className="h-6 w-6 text-zinc-300" /></div>
             ) : shown.length === 0 ? (
-              <div className="py-16 text-center text-sm text-zinc-400">
+              <div className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
                 {books.length === 0 ? <>Your library is empty — hit <strong>+ Add</strong> to get started.</> : "Nothing matches the current filters."}
               </div>
             ) : view === "covers" ? (
@@ -581,7 +582,7 @@ export default function App({ session, onSignOut }) {
                 {shown.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
               </div>
             ) : view === "list" ? (
-              <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 {shown.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
               </div>
             ) : (

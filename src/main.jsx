@@ -51,7 +51,7 @@ function AuthGate() {
 
   if (session === undefined) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-400">
+      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
         Loading…
       </div>
     );

@@ -4,13 +4,47 @@
 // and iTunes are cover/author fallbacks when Audible has nothing.
 
 const AUDIBLE = "https://api.audible.com/1.0/catalog/products";
-const RESPONSE_GROUPS = "contributors,media,product_attrs,series";
+const RESPONSE_GROUPS = "contributors,media,product_attrs,series,category_ladders";
 const UA = { "User-Agent": "Mozilla/5.0 (AudiobookLibrary/2.0)" };
+
+// Map Audible category ladders onto the app's genre list. Deepest rungs are
+// checked first so "Epic Fantasy" wins over the "Science Fiction & Fantasy"
+// umbrella; the deepest non-umbrella leaf becomes the subgenre.
+const GENRE_PATTERNS = [
+  [/science fiction/, "Science Fiction"],
+  [/fantasy/, "Fantasy"],
+  [/horror/, "Horror"],
+  [/thriller|suspense/, "Thriller"],
+  [/mystery/, "Mystery"],
+  [/romance/, "Romance"],
+  [/memoir/, "Memoir"],
+  [/biograph/, "Biography"],
+  [/historical fiction/, "Historical Fiction"],
+  [/teen|young adult/, "Young Adult"],
+  [/children|kids/, "Children"],
+  [/literary/, "Literary Fiction"],
+  [/history|science & engineering|business|self.development|education|politics|religion|health|nonfiction|true crime/, "Nonfiction"],
+];
+
+function categoriesToGenre(ladders) {
+  const names = (ladders ?? []).flatMap((l) => [...(l.ladder ?? [])].reverse().map((c) => c.name));
+  let genre = null;
+  outer: for (const n of names) {
+    const ln = n.toLowerCase();
+    for (const [re, g] of GENRE_PATTERNS) {
+      if (re.test(ln)) { genre = g; break outer; }
+    }
+  }
+  const leaves = (ladders ?? []).map((l) => l.ladder?.[l.ladder.length - 1]?.name).filter(Boolean);
+  const subgenre = leaves.find((n) => n !== genre && !n.includes("&")) ?? null;
+  return { genre, subgenre };
+}
 
 function normalizeProduct(p) {
   const series = (p.series ?? []).find((s) => s.sequence) ?? (p.series ?? [])[0] ?? null;
   const img = p.product_images ? Object.values(p.product_images)[0] : null;
   return {
+    ...categoriesToGenre(p.category_ladders),
     asin: p.asin,
     title: p.title,
     subtitle: p.subtitle ?? null,
