@@ -327,7 +327,7 @@ export default function PublicProfile({ profileId }) {
           <div className="min-w-0 flex-1 flex items-center gap-2">
             <span className="font-semibold text-zinc-900 dark:text-zinc-100">{profile.name}</span>
             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              Shared library · read only
+              Shared Library
             </span>
           </div>
           <div className="flex items-center gap-2">
