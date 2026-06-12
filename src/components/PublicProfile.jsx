@@ -1,7 +1,7 @@
 // Public read-only view of a shared library profile, accessible at /share/{profileId}.
 // Uses a separate anon Supabase client so the viewer's session never leaks into
 // public reads. The viewer's own authenticated client is used only for "add" writes.
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import supabase from "../lib/supabase.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./BookCard.jsx";
@@ -244,6 +244,22 @@ export default function PublicProfile({ profileId }) {
 
   const filtered = useMemo(() => applyFilter(books, filter, sort), [books, filter, sort]);
 
+  const PAGE_SIZE = 40;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+  useEffect(() => setVisibleCount(PAGE_SIZE), [filter, sort, tab]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisibleCount((n) => n + PAGE_SIZE); },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  });
+  const page = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+
   async function doAdd(book, targetProfileId) {
     try {
       await createBook({
@@ -409,17 +425,26 @@ export default function PublicProfile({ profileId }) {
             {filtered.length === 0 ? (
               <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">No books found.</p>
             ) : view === "covers" ? (
-              <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-                {filtered.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+                  {page.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             ) : view === "list" ? (
-              <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                {filtered.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                  {page.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filtered.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
+                </div>
+                <div ref={sentinelRef} />
+              </>
             )}
           </>
         )}
