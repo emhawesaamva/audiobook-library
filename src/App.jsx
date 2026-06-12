@@ -14,7 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -75,7 +75,7 @@ function CreateFirstLibrary({ onCreate }) {
 }
 
 const FILTERS = [
-  ["all", "All"], ["recommended", "Rec"], ["loved", "Loved"],
+  ["all", "All"], ["recommended", "Recommended"], ["loved", "Loved"],
   ["read", "Read"], ["reading", "Listening"], ["want", "Want"], ["dnf", "DNF"],
   ["crowd", "Crowd 4.5+"],
 ];
@@ -115,6 +115,8 @@ export default function App({ session, onSignOut }) {
   const [form, setForm] = useState(null);          // {book} | null
   const [seriesOpen, setSeriesOpen] = useState(null); // series id | null
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [onboarding, setOnboarding] = useState(false); // welcome framing in settings after creating a library
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
@@ -611,6 +613,11 @@ export default function App({ session, onSignOut }) {
               }}
             />
             <ToolbarButton
+              label="Share library"
+              icon={<Share2 className="h-4 w-4 shrink-0" />}
+              onClick={() => setShareOpen(true)}
+            />
+            <ToolbarButton
               label={size === "large" ? "Compact view" : "Larger view"}
               icon={<ALargeSmall className="h-[19px] w-[19px] shrink-0" />}
               onClick={() => {
@@ -855,7 +862,62 @@ export default function App({ session, onSignOut }) {
         />
       )}
 
+      {shareOpen && activeId && (
+        <ShareModal
+          profile={activeProfile}
+          profileId={activeId}
+          copied={shareCopied}
+          onCopy={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/share/${activeId}`);
+            setShareCopied(true);
+            setTimeout(() => setShareCopied(false), 2000);
+          }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+
       <Toast toast={toast} />
+    </div>
+  );
+}
+
+function ShareModal({ profile, profileId, copied, onCopy, onClose }) {
+  const url = `${window.location.origin}/share/${profileId}`;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-300/90 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
+          <h2 className="text-base font-semibold">Share "{profile?.name}"</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer">✕</button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Anyone with this link can browse this library and stats in read-only mode. Signed-in visitors can add books to their own library.
+          </p>
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-300/90 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-900/60">
+            <span className="flex-1 truncate font-mono text-xs text-zinc-700 dark:text-zinc-300">{url}</span>
+            <button
+              onClick={onCopy}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300/90 bg-white px-2.5 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 cursor-pointer"
+            >
+              {copied ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <a
+              href={`/share/${profileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-accent-600 hover:text-accent-700"
+            >
+              Preview →
+            </a>
+            <button onClick={onClose} className="rounded-lg border border-zinc-300/90 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 cursor-pointer">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
