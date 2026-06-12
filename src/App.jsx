@@ -254,12 +254,17 @@ export default function App({ session, onSignOut }) {
     await refreshBooks();
   };
 
-  const removeBook = async (book) => {
+  const guard = (fn) => async (...args) => {
+    try { await fn(...args); }
+    catch (e) { setToast({ text: e.message, isError: true }); }
+  };
+
+  const removeBook = guard(async (book) => {
     await db.deleteBook(book.id);
     if (getStatus(book) === "recommended") db.addRejected(activeId, book.title).catch(() => {});
     await refreshBooks();
     setToast({ text: `Deleted "${book.title}"` });
-  };
+  });
 
   // ---- up-next queue ----
   const queue = useMemo(() => {
@@ -267,20 +272,20 @@ export default function App({ session, onSignOut }) {
     return all.filter((b) => b.queue_position != null).sort((a, b) => a.queue_position - b.queue_position);
   }, [books]);
 
-  const queueToggle = async (book) => {
+  const queueToggle = guard(async (book) => {
     const queued = book.queue_position != null;
     await db.updateBook(book.id, {
       queue_position: queued ? null : (queue[queue.length - 1]?.queue_position ?? 0) + 1,
     });
     await refreshBooks();
     setToast({ text: queued ? "Removed from Up Next" : "Added to Up Next" });
-  };
+  });
 
-  const startListening = async (book) => {
+  const startListening = guard(async (book) => {
     await db.updateBook(book.id, { status: "reading", date_started: today(), queue_position: null });
     await refreshBooks();
     setToast({ text: `Started "${book.title}" 🎧` });
-  };
+  });
 
   // ---- profiles ----
   const addProfile = async () => {
