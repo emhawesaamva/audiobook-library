@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, Stars, Cover, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
 import { GENRES, STATUS_LABEL } from "../lib/bookUtils.js";
+import { Heart } from "lucide-react";
 
 const EMPTY = {
   title: "", author: "", narrator: "", genre: "Science Fiction", subgenre: "",
@@ -61,7 +62,11 @@ export default function BookForm({
     setResults(null);
     setQ("");
     setSeriesPanel(null);
-    setF((p) => ({ ...p, ...resultToBook(r) }));
+    // Only spread non-empty values so a sparse result never clears fields.
+    const patch = Object.fromEntries(
+      Object.entries(resultToBook(r)).filter(([, v]) => v != null && v !== "")
+    );
+    setF((p) => ({ ...p, ...patch }));
   };
 
   const loadSeries = async () => {
@@ -142,12 +147,12 @@ export default function BookForm({
               placeholder="Title, author, or series…"
               className={inputCls}
             />
-            {searching && <span className="absolute right-3 top-2.5 text-zinc-400"><Spinner /></span>}
+            {searching && <span className="absolute right-3 top-2.5 text-zinc-500 dark:text-zinc-400"><Spinner /></span>}
           </div>
           {results && (
-            <div className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-zinc-300/90 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
               {results.length === 0 && (
-                <div className="px-3 py-2.5 text-sm text-zinc-400">No matches — fill the form manually below.</div>
+                <div className="px-3 py-2.5 text-sm text-zinc-500 dark:text-zinc-400">No matches — fill the form manually below.</div>
               )}
               {results.map((r) => (
                 <button
@@ -158,8 +163,8 @@ export default function BookForm({
                   <Cover book={r} className="h-12 w-8 shrink-0" rounded="rounded" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium">{r.title}</span>
-                    <span className="block truncate text-xs text-zinc-400">
-                      {r.author}{r.narrator ? ` · 🎙 ${r.narrator}` : ""}{r.year ? ` · ${r.year}` : ""}
+                    <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {r.author}{r.narrator ? ` · ${r.narrator}` : ""}{r.year ? ` · ${r.year}` : ""}
                       {r.series ? ` · ${r.series.title}${r.series.position ? ` #${r.series.position}` : ""}` : ""}
                     </span>
                   </span>
@@ -188,9 +193,9 @@ export default function BookForm({
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="text-base font-semibold">{seriesPanel.title}</h3>
-            <button onClick={() => setSeriesPanel(null)} className="text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer">← single book instead</button>
+            <button onClick={() => setSeriesPanel(null)} className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 cursor-pointer">← single book instead</button>
           </div>
-          <div className="mb-3 max-h-72 space-y-1 overflow-y-auto rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+          <div className="mb-3 max-h-72 space-y-1 overflow-y-auto rounded-lg border border-zinc-300/90 p-2 dark:border-zinc-800">
             {seriesPanel.volumes.map((v) => (
               <label key={v.asin} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
                 <input
@@ -202,10 +207,10 @@ export default function BookForm({
                 <Cover book={v} className="h-11 w-7 shrink-0" rounded="rounded" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
-                    <span className="mr-1.5 text-xs text-zinc-400">#{v.position}</span>{v.title}
+                    <span className="mr-1.5 text-xs text-zinc-500 dark:text-zinc-400">#{v.position}</span>{v.title}
                   </span>
-                  <span className="block truncate text-xs text-zinc-400">
-                    {v.narrator ? `🎙 ${v.narrator}` : ""}{v.duration_minutes ? ` · ${Math.round(v.duration_minutes / 60)}h` : ""}
+                  <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    {v.narrator ? `${v.narrator}` : ""}{v.duration_minutes ? ` · ${Math.round(v.duration_minutes / 60)}h` : ""}
                   </span>
                 </span>
               </label>
@@ -221,7 +226,7 @@ export default function BookForm({
               <input value={f.subgenre ?? ""} onChange={(e) => s("subgenre", e.target.value)} className={inputCls} />
             </Field>
           </div>
-          <p className="mb-3 text-xs text-zinc-400">
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
             {seriesPanel.checked.size} of {seriesPanel.volumes.length} volumes selected — added as a series, all marked Want to Listen.
           </p>
         </div>
@@ -268,7 +273,7 @@ export default function BookForm({
             <Field label="Rating">
               <Stars rating={f.rating} onChange={(v) => s("rating", v)} size="text-2xl" />
               {f.rating > 0 && (
-                <button onClick={() => s("rating", null)} className="ml-2 text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer">clear</button>
+                <button onClick={() => s("rating", null)} className="ml-2 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 cursor-pointer">clear</button>
               )}
             </Field>
           )}
@@ -284,10 +289,12 @@ export default function BookForm({
             </div>
           )}
 
-          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" checked={!!f.loved} onChange={(e) => s("loved", e.target.checked)} className="accent-accent-500" />
-            Loved ⭐
-          </label>
+          {(f.is_series || f.status === "read") && (
+            <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" checked={!!f.loved} onChange={(e) => s("loved", e.target.checked)} className="accent-accent-500" />
+              Loved <Heart className="h-4 w-4 fill-accent-500 text-accent-500" />
+            </label>
+          )}
 
           {isNew && !isSub && !f.is_series && seriesList.length > 0 && (
             <Field label="Add to existing series">

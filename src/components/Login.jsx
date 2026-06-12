@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import supabase from "../lib/supabase.js";
 import { btnPrimary, btnSecondary, inputCls, labelCls, Spinner } from "./shared.jsx";
+import { Headphones } from "lucide-react";
 
 const MODES = { signin: "Sign in", signup: "Create account", reset: "Reset password" };
 
@@ -60,12 +61,12 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500 text-2xl shadow-md">🎧</div>
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500 shadow-md"><Headphones className="h-6 w-6 text-zinc-900" /></div>
           <h1 className="text-2xl font-bold">Audiobook Library</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Track, rate, and discover audiobooks</p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Track, rate, and discover audiobooks</p>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-300/90 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <button onClick={google} className={`${btnSecondary} w-full`}>
             <svg width="16" height="16" viewBox="0 0 48 48">
               <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
@@ -76,7 +77,7 @@ export default function Login() {
             Continue with Google
           </button>
 
-          <div className="my-4 flex items-center gap-3 text-xs text-zinc-400">
+          <div className="my-4 flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
             <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
             or
             <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
@@ -101,7 +102,7 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-4 flex justify-between text-xs text-zinc-500">
+          <div className="mt-4 flex justify-between text-xs text-zinc-600 dark:text-zinc-400">
             {mode === "signin" ? (
               <>
                 {!signupsDisabled && (

@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import { flattenBooks, fmtDuration } from "../lib/bookUtils.js";
 import { inputCls, labelCls } from "./shared.jsx";
+import { Ruler, Repeat, Ban } from "lucide-react";
 
 function StatCard({ value, label, sub }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="rounded-xl border border-zinc-300/90 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900">
       <div className="text-2xl font-bold">{value}</div>
-      <div className="mt-0.5 text-xs font-medium uppercase tracking-wider text-zinc-400">{label}</div>
-      {sub && <div className="mt-0.5 text-xs text-zinc-400">{sub}</div>}
+      <div className="mt-0.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{label}</div>
+      {sub && <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{sub}</div>}
     </div>
   );
 }
@@ -18,8 +19,8 @@ function TopList({ title, items }) {
   if (!items.length) return null;
   const max = items[0][1];
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">{title}</div>
+    <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{title}</div>
       <div className="space-y-2">
         {items.map(([name, count]) => (
           <div key={name} className="flex items-center gap-2 text-sm">
@@ -27,7 +28,7 @@ function TopList({ title, items }) {
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
               <div className="h-full rounded-full bg-accent-500" style={{ width: `${(count / max) * 100}%` }} />
             </div>
-            <span className="w-6 text-right text-xs text-zinc-400">{count}</span>
+            <span className="w-6 text-right text-xs text-zinc-500 dark:text-zinc-400">{count}</span>
           </div>
         ))}
       </div>
@@ -39,7 +40,7 @@ function GoalRing({ label, current, target, unit }) {
   const pct = Math.min(100, Math.round((current / target) * 100));
   const r = 34, c = 2 * Math.PI * r;
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex items-center gap-4 rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <svg width="84" height="84" viewBox="0 0 84 84" className="-rotate-90 shrink-0">
         <circle cx="42" cy="42" r={r} fill="none" strokeWidth="8" className="stroke-zinc-100 dark:stroke-zinc-800" />
         <circle cx="42" cy="42" r={r} fill="none" strokeWidth="8" strokeLinecap="round"
@@ -48,8 +49,8 @@ function GoalRing({ label, current, target, unit }) {
       </svg>
       <div>
         <div className="text-xl font-bold">{pct}%</div>
-        <div className="text-sm text-zinc-500">{current} of {target} {unit}</div>
-        <div className="text-xs text-zinc-400">{label}</div>
+        <div className="text-sm text-zinc-600 dark:text-zinc-400">{current} of {target} {unit}</div>
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">{label}</div>
       </div>
     </div>
   );
@@ -149,29 +150,29 @@ export default function Stats({ books, goals, onSetGoal }) {
 
       {/* rating distribution + superlatives */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Rating distribution</div>
+        <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Rating distribution</div>
           <div className="flex h-28 items-end gap-1.5">
             {[1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((r) => {
               const n = stats.dist.get(r) ?? 0;
               return (
                 <div key={r} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="text-[10px] text-zinc-400">{n || ""}</span>
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400">{n || ""}</span>
                   <div className="w-full rounded-t bg-accent-500/80" style={{ height: `${(n / maxDist) * 80}px` }} />
-                  <span className="text-[10px] text-zinc-400">{r}</span>
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400">{r}</span>
                 </div>
               );
             })}
           </div>
         </div>
-        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Superlatives</div>
+        <div className="space-y-3 rounded-xl border border-zinc-300/90 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Superlatives</div>
           {stats.longest && (
-            <p>📏 Longest listen: <strong>{stats.longest.title}</strong> ({fmtDuration(stats.longest.duration_minutes)})</p>
+            <p className="flex items-center gap-2"><Ruler className="h-4 w-4 text-zinc-500 dark:text-zinc-400" /> <span>Longest listen: <strong>{stats.longest.title}</strong> ({fmtDuration(stats.longest.duration_minutes)})</span></p>
           )}
-          <p>🔁 Re-listens: <strong>{stats.rereads}</strong></p>
-          <p>🚫 Did-not-finish: <strong>{stats.dnf}</strong></p>
-          {!stats.longest && <p className="text-zinc-400">Add durations to books (autofill does this) to unlock listening-time stats.</p>}
+          <p className="flex items-center gap-2"><Repeat className="h-4 w-4 text-zinc-500 dark:text-zinc-400" /> <span>Re-listens: <strong>{stats.rereads}</strong></span></p>
+          <p className="flex items-center gap-2"><Ban className="h-4 w-4 text-zinc-500 dark:text-zinc-400" /> <span>Did-not-finish: <strong>{stats.dnf}</strong></span></p>
+          {!stats.longest && <p className="text-zinc-500 dark:text-zinc-400">Add durations to books (autofill does this) to unlock listening-time stats.</p>}
         </div>
       </div>
     </div>

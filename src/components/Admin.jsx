@@ -36,11 +36,11 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
   };
 
   const td = "px-3 py-2 text-sm";
-  const th = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400";
+  const th = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400";
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className={labelCls}>App settings</div>
         <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm">
           <button
@@ -54,12 +54,12 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
         </label>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="border-b border-zinc-100 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:border-zinc-800">
+      <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="border-b border-zinc-100 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">
           Users {users && `(${users.length})`}
         </div>
         {error && <div className="px-4 py-3 text-sm text-red-600">{error}</div>}
-        {!users && !error && <div className="flex justify-center py-8"><Spinner className="h-5 w-5 text-zinc-400" /></div>}
+        {!users && !error && <div className="flex justify-center py-8"><Spinner className="h-5 w-5 text-zinc-500 dark:text-zinc-400" /></div>}
         {users && (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -80,11 +80,11 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
                       {u.email}
                       {u.is_admin && <span className="ml-1.5 rounded bg-accent-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-accent-700 dark:bg-accent-700/20 dark:text-accent-400">admin</span>}
                     </td>
-                    <td className={`${td} text-zinc-400`}>{(u.providers ?? []).join(", ") || "email"}</td>
+                    <td className={`${td} text-zinc-500 dark:text-zinc-400`}>{(u.providers ?? []).join(", ") || "email"}</td>
                     <td className={td}>{u.profile_count}</td>
                     <td className={td}>{u.book_count}</td>
-                    <td className={`${td} text-zinc-400`}>{u.created_at?.slice(0, 10)}</td>
-                    <td className={`${td} text-zinc-400`}>{u.last_sign_in_at?.slice(0, 10) ?? "—"}</td>
+                    <td className={`${td} text-zinc-500 dark:text-zinc-400`}>{u.created_at?.slice(0, 10)}</td>
+                    <td className={`${td} text-zinc-500 dark:text-zinc-400`}>{u.last_sign_in_at?.slice(0, 10) ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

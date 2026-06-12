@@ -13,9 +13,10 @@ export async function seriesVolumes(seriesAsin) {
   return r.json();
 }
 
-// Map a metadata result onto book-form fields.
+// Map a metadata result onto book-form fields. Genre/subgenre only when the
+// source detected them, so spreads never clobber a user's choice with null.
 export function resultToBook(r) {
-  return {
+  const out = {
     title: r.title ?? "",
     author: r.author ?? "",
     narrator: r.narrator ?? "",
@@ -27,4 +28,7 @@ export function resultToBook(r) {
     description: r.description ?? null,
     series_position: r.series?.position ?? r.position ?? null,
   };
+  if (r.genre) out.genre = r.genre;
+  if (r.subgenre) out.subgenre = r.subgenre;
+  return out;
 }

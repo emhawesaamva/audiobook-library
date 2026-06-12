@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
 import { parseGoodreadsCSV, booksToCSV, download } from "../lib/csv.js";
+import { Upload, Download } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
 
 const AGE_GROUPS = [
@@ -99,7 +100,7 @@ export default function Settings({
               className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition cursor-pointer ${
                 profile.age_group === ag.value
                   ? "border-accent-500 bg-accent-50 text-accent-700 dark:bg-accent-700/15 dark:text-accent-400"
-                  : "border-zinc-200 text-zinc-500 hover:border-zinc-300 dark:border-zinc-700"
+                  : "border-zinc-300/90 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:border-zinc-700"
               }`}
             >
               {ag.label}
@@ -112,7 +113,7 @@ export default function Settings({
       <div className={section}>
         <div className={labelCls}>Import & export</div>
         {importing ? (
-          <div className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700">
+          <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
             <Spinner />
             <span>Importing… {importing.done}/{importing.total}</span>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
@@ -122,16 +123,16 @@ export default function Settings({
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => fileRef.current?.click()} className={btnSecondary}>↑ Import Goodreads CSV</button>
-              <button onClick={() => download(`${profile.name}-library.csv`, booksToCSV(books), "text/csv")} className={btnSecondary}>↓ Export CSV</button>
-              <button onClick={() => download(`${profile.name}-library.json`, JSON.stringify(books, null, 2), "application/json")} className={btnSecondary}>↓ Export JSON</button>
+              <button onClick={() => fileRef.current?.click()} className={btnSecondary}><Upload className="h-4 w-4" /> Import Goodreads CSV</button>
+              <button onClick={() => download(`${profile.name}-library.csv`, booksToCSV(books), "text/csv")} className={btnSecondary}><Download className="h-4 w-4" /> Export CSV</button>
+              <button onClick={() => download(`${profile.name}-library.json`, JSON.stringify(books, null, 2), "application/json")} className={btnSecondary}><Download className="h-4 w-4" /> Export JSON</button>
               <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
             </div>
-            <label className="mt-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-zinc-500">
+            <label className="mt-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
               <input type="checkbox" checked={enrich} onChange={(e) => setEnrich(e.target.checked)} className="accent-accent-500" />
               Enrich imports with covers, narrators & durations (slower)
             </label>
-            <p className="mt-1 text-xs text-zinc-400">Import is additive — books already in this library are skipped.</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Import is additive — books already in this library are skipped.</p>
           </>
         )}
       </div>
@@ -153,7 +154,7 @@ export default function Settings({
 
       {/* ---- account ---- */}
       <div className={`${section} flex items-center justify-between text-sm`}>
-        <span className="truncate text-zinc-500">{session.user.email}</span>
+        <span className="truncate text-zinc-600 dark:text-zinc-400">{session.user.email}</span>
         <button onClick={onSignOut} className={`${btnSecondary} !py-1.5 text-xs`}>Sign out</button>
       </div>
     </Dialog>

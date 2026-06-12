@@ -59,7 +59,7 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Ask anything — describe a mood, genre, author, or a book you loved and want more of.
       </p>
       <div className="flex gap-2">
@@ -78,16 +78,16 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
       {res?.error && (
         <p className="text-sm text-red-600 dark:text-red-400">Something went wrong{res.msg ? `: ${res.msg}` : "."}</p>
       )}
-      {res?.note && <p className="text-sm italic text-zinc-500">{res.note}</p>}
-      {res?.recommendations?.length === 0 && <p className="text-sm text-zinc-400">No new results found.</p>}
+      {res?.note && <p className="text-sm italic text-zinc-600 dark:text-zinc-400">{res.note}</p>}
+      {res?.recommendations?.length === 0 && <p className="text-sm text-zinc-500 dark:text-zinc-400">No new results found.</p>}
 
       {res?.recommendations?.map((r, i) => (
-        <div key={i} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div key={i} className="rounded-xl border border-zinc-300/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
               <span className="text-base font-semibold">{r.title}</span>
-              <span className="ml-2 text-sm text-zinc-500">{r.author}</span>
-              {r.year && <span className="ml-2 text-xs text-zinc-400">{r.year}</span>}
+              <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400">{r.author}</span>
+              {r.year && <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">{r.year}</span>}
             </div>
             <a
               href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
@@ -99,7 +99,7 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
           </div>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{r.why}</p>
           <div className="mt-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-xs text-zinc-400">
+            <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
               {r.similarity && <span>↔ {r.similarity}</span>}
               <a
                 href={`https://www.goodreads.com/search?q=${encodeURIComponent(`${r.title} ${r.author}`)}`}
@@ -111,7 +111,7 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
             {added[r.title] === true ? (
               <span className="text-xs font-semibold text-emerald-600">✓ Added</span>
             ) : added[r.title] === "adding" ? (
-              <Spinner className="h-3.5 w-3.5 text-zinc-400" />
+              <Spinner className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
             ) : (
               <button onClick={() => handleAdd(r)} className={`${btnSecondary} !py-1 !px-2.5 text-xs`}>
                 + Want to Listen
@@ -122,8 +122,8 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
       ))}
 
       {lovedAuthors.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Loved authors</div>
+        <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Loved authors</div>
           <div className="flex flex-wrap gap-1.5">
             {lovedAuthors.map((a) => (
               <span key={a} className="rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">

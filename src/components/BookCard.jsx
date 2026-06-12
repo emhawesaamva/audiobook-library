@@ -2,6 +2,7 @@
 // All three share the same action menu (edit / delete / queue / links).
 import { useState, useRef, useEffect } from "react";
 import { Stars, StatusChip, Cover, ConfirmRow } from "./shared.jsx";
+import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart } from "lucide-react";
 import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl,
 } from "../lib/bookUtils.js";
@@ -20,22 +21,22 @@ function ActionMenu({ book, onEdit, onDelete, onQueueToggle, onClose }) {
 
   return (
     <div ref={ref} onClick={(e) => e.stopPropagation()}
-      className="absolute right-1 top-8 z-20 w-48 animate-fade-up rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+      className="absolute right-1 top-8 z-20 w-48 animate-fade-up rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
       {confirming ? (
         <div className="p-2">
           <ConfirmRow message="Delete?" onConfirm={() => { onClose(); onDelete(); }} onCancel={() => setConfirming(false)} />
         </div>
       ) : (
         <>
-          <button className={item} onClick={() => { onClose(); onEdit(); }}>✏️ Edit</button>
+          <button className={item} onClick={() => { onClose(); onEdit(); }}><Pencil className="h-3.5 w-3.5" /> Edit</button>
           {!book.is_series && onQueueToggle && (
             <button className={item} onClick={() => { onClose(); onQueueToggle(); }}>
-              {queued ? "➖ Remove from Up Next" : "🎯 Add to Up Next"}
+              {queued ? <><ListX className="h-3.5 w-3.5" /> Remove from Up Next</> : <><ListPlus className="h-3.5 w-3.5" /> Add to Up Next</>}
             </button>
           )}
-          <a className={item} href={audibleSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}>🎧 Audible ↗</a>
-          <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}>📖 Goodreads ↗</a>
-          <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}>🗑 Delete</button>
+          <a className={item} href={audibleSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
+          <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
+          <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
         </>
       )}
     </div>
@@ -46,7 +47,7 @@ function MenuButton({ open, setOpen }) {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-      className="rounded-md p-1 text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 data-[open=true]:opacity-100 cursor-pointer"
+      className="rounded-md p-1 text-zinc-500 dark:text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 data-[open=true]:opacity-100 cursor-pointer"
       data-open={open}
       aria-label="Book actions"
     >
@@ -56,7 +57,8 @@ function MenuButton({ open, setOpen }) {
 }
 
 function LovedCorner() {
-  return <div className="absolute right-0 top-0 h-0 w-0 rounded-tr-xl" style={{ borderWidth: "0 18px 18px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
+  // Pokes 2px past the card's rounded corner so the fold forms a sharp 90°.
+  return <div className="pointer-events-none absolute -right-0.5 -top-0.5 h-0 w-0" style={{ borderWidth: "0 20px 20px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
 }
 
 function seriesMeta(book) {
@@ -71,8 +73,8 @@ export function BookCardGrid({ book, onEdit, onDelete, onOpen, onQueueToggle }) 
   const rating = calcSeriesRating(book);
   return (
     <div
-      onClick={book.is_series && onOpen ? onOpen : undefined}
-      className={`group relative rounded-xl border border-zinc-200 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 ${book.is_series && onOpen ? "cursor-pointer" : ""}`}
+      onClick={book.is_series && onOpen ? onOpen : onEdit}
+      className="group relative cursor-pointer rounded-xl border border-zinc-300/90 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
     >
       {book.loved && <LovedCorner />}
       <div className="flex gap-3">
@@ -82,18 +84,18 @@ export function BookCardGrid({ book, onEdit, onDelete, onOpen, onQueueToggle }) 
             {book.title}
             {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series ›</span>}
           </div>
-          <div className="truncate text-sm text-zinc-500 dark:text-zinc-400">{book.author}</div>
+          <div className="truncate text-sm text-zinc-600 dark:text-zinc-400">{book.author}</div>
           {book.narrator && (
-            <div className="truncate text-xs text-zinc-400 dark:text-zinc-500">🎙 {book.narrator}</div>
+            <div className="flex items-center gap-1 truncate text-xs text-zinc-500 dark:text-zinc-400"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{book.narrator}</span></div>
           )}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <StatusChip status={status} />
             {rating > 0 && <Stars rating={rating} size="text-sm" />}
             {book.is_series
-              ? <span className="text-xs text-zinc-400">{seriesMeta(book)}</span>
-              : book.duration_minutes && <span className="text-xs text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
+              ? <span className="text-xs text-zinc-500 dark:text-zinc-400">{seriesMeta(book)}</span>
+              : book.duration_minutes && <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
           </div>
-          {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-400">{book.subgenre}</div>}
+          {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
         </div>
         <div className="relative shrink-0">
           <MenuButton open={menu} setOpen={setMenu} />
@@ -125,17 +127,17 @@ export function BookCoverTile({ book, onEdit, onDelete, onOpen, onQueueToggle })
             </span>
           )}
         </div>
-        {book.loved && <span className="absolute right-1.5 top-1.5 drop-shadow">⭐</span>}
-        <div className="absolute right-1 bottom-1" onClick={(e) => e.stopPropagation()}>
-          <span className="rounded-md bg-black/55 text-white [&>button]:opacity-100 [&>button]:text-white/90 inline-block">
-            <MenuButton open={menu} setOpen={setMenu} />
-          </span>
-          {menu && <ActionMenu book={book} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onClose={() => setMenu(false)} />}
-        </div>
+        {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
+      </div>
+      <div className="absolute bottom-12 right-1" onClick={(e) => e.stopPropagation()}>
+        <span className="inline-block rounded-md bg-black/55 text-white [&>button]:opacity-100 [&>button]:text-white/90">
+          <MenuButton open={menu} setOpen={setMenu} />
+        </span>
+        {menu && <ActionMenu book={book} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onClose={() => setMenu(false)} />}
       </div>
       <div className="mt-1.5 truncate text-xs font-medium">{book.title}</div>
       <div className="flex items-center justify-between">
-        <span className="truncate text-[11px] text-zinc-400">{book.author}</span>
+        <span className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{book.author}</span>
         {rating > 0 && <span className="text-[11px] text-accent-600 font-semibold shrink-0 ml-1">★ {rating}</span>}
       </div>
     </div>
@@ -149,20 +151,20 @@ export function BookListRow({ book, onEdit, onDelete, onOpen, onQueueToggle }) {
   const rating = calcSeriesRating(book);
   return (
     <div
-      onClick={book.is_series && onOpen ? onOpen : undefined}
-      className={`group relative flex items-center gap-3 border-b border-zinc-100 px-2 py-2 transition hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-900 ${book.is_series && onOpen ? "cursor-pointer" : ""}`}
+      onClick={book.is_series && onOpen ? onOpen : onEdit}
+      className="group relative flex cursor-pointer items-center gap-3 border-b border-zinc-100 px-2 py-2 transition hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-900"
     >
       <Cover book={book} className="h-14 w-9 shrink-0" rounded="rounded" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold">
           {book.title}
-          {book.loved && <span className="ml-1 text-accent-500">⭐</span>}
+          {book.loved && <Heart className="ml-1 inline h-3.5 w-3.5 fill-accent-500 text-accent-500" />}
           {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series · {seriesMeta(book)} ›</span>}
         </div>
-        <div className="truncate text-xs text-zinc-500">{book.author}</div>
+        <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">{book.author}</div>
       </div>
-      <div className="hidden w-40 truncate text-xs text-zinc-400 md:block">{book.narrator}</div>
-      <div className="hidden w-16 text-right text-xs text-zinc-400 sm:block">
+      <div className="hidden w-40 truncate text-xs text-zinc-500 dark:text-zinc-400 md:block">{book.narrator}</div>
+      <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
         {book.is_series ? "" : fmtDuration(book.duration_minutes) ?? ""}
       </div>
       <div className="w-20 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
