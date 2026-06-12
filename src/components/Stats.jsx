@@ -279,7 +279,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 <UserRound className="h-3.5 w-3.5" /> Contrarian takes
               </div>
-              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">Authors where your taste consistently diverges from the world's (2+ books).</p>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">Authors where {poss} taste consistently diverges from the world's (2+ books).</p>
               <div className="space-y-1.5 text-sm">
                 {stats.contrarians.map((a) => (
                   <div key={a.author} className="flex items-baseline justify-between gap-2">
