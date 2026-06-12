@@ -15,7 +15,7 @@ const AGE_GROUPS = [
 ];
 
 export default function Settings({
-  profile, profiles, books, session, libbyKey,
+  profile, profiles, books, session, libbyKey, welcome = false,
   onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks,
   onLibbyKeyChange, onClose, onSignOut, onToast,
 }) {
@@ -143,7 +143,18 @@ export default function Settings({
   const section = "border-t border-zinc-100 pt-4 mt-4 dark:border-zinc-800";
 
   return (
-    <Dialog title="Library settings" onClose={onClose}>
+    <Dialog title={welcome ? `Welcome — set up "${profile.name}"` : "Library settings"} onClose={onClose}>
+      {welcome && (
+        <div className="mb-4 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5 text-sm dark:border-accent-700/40 dark:bg-accent-700/10">
+          <p className="font-medium">Your library is ready! Two things worth doing right away:</p>
+          <ol className="mt-1 list-decimal pl-5 text-zinc-600 dark:text-zinc-300">
+            <li>Pick who this library is for — it tunes the AI recommendations.</li>
+            <li><strong>Bring your books in</strong> — import a Goodreads or Libby export, or just paste any list of titles from your notes.</li>
+          </ol>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">All of this stays available later under the ⚙ settings icon.</p>
+        </div>
+      )}
+
       {/* ---- which library ---- */}
       <div>
         <label className={labelCls}>Library</label>
