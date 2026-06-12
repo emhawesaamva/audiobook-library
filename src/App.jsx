@@ -741,6 +741,14 @@ export default function App({ session, onSignOut }) {
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
                   {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
                 </select>
+                {(filter !== "all" || genre !== "all" || minRating !== 0 || sortBy !== "status" || search) && (
+                  <button
+                    onClick={() => { setFilter("all"); setGenre("all"); setMinRating(0); setSortBy("status"); setSearch(""); }}
+                    className="rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 cursor-pointer"
+                  >
+                    Clear filters
+                  </button>
+                )}
                 {/* view toggle */}
                 <div className="flex rounded-lg border border-zinc-300/90 p-0.5 dark:border-zinc-700">
                   {[["covers", Grid3x3], ["cards", LayoutGrid], ["list", List]].map(([v, Icon]) => (
