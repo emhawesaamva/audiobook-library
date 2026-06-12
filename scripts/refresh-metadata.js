@@ -55,6 +55,7 @@ for (const book of nonHeaders) {
   if (!book.year && match.year) patch.year = match.year;
   if (!book.cover_url && match.cover_url) patch.cover_url = match.cover_url;
   if (!book.asin && match.asin) patch.asin = match.asin;
+  if (!book.goodreads_rating && match.public_rating?.average) patch.goodreads_rating = match.public_rating.average;
   if (Object.keys(patch).length) {
     filled++;
     console.log(`  fields ${book.title}: ${Object.keys(patch).join(", ")}`);

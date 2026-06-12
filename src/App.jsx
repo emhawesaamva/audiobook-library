@@ -844,6 +844,7 @@ export default function App({ session, onSignOut }) {
           }}
           onDeleteProfile={deleteActiveProfile}
           onImportBooks={importBooks}
+          onRefreshDone={refreshBooks}
           libbyKey={prefs.libby_key ?? ""}
           onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
           welcome={onboarding}
