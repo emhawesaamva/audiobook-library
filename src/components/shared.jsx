@@ -75,7 +75,7 @@ export function Cover({ book, className = "", rounded = "rounded-md" }) {
       className={`flex items-center justify-center ${rounded} ${className}`}
       style={{ background: `linear-gradient(145deg, hsl(${hue} 35% 38%), hsl(${hue} 45% 22%))` }}
     >
-      <span className="font-serif text-white/85 text-center text-[11px] leading-tight px-1.5 line-clamp-4">
+      <span className="text-white/85 text-center text-[11px] leading-tight px-1.5 line-clamp-4">
         {book.title}
       </span>
     </div>
@@ -96,7 +96,7 @@ export function Dialog({ title, onClose, children, wide = false }) {
     >
       <div className={`animate-fade-up w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900`}>
         <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3.5 dark:border-zinc-800">
-          <h2 className="font-serif text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
@@ -109,7 +109,7 @@ export function Dialog({ title, onClose, children, wide = false }) {
 
 // ---- buttons & inputs ----
 export const btnPrimary =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600 disabled:opacity-50 disabled:cursor-default cursor-pointer";
+  "inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent-500 px-3.5 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition hover:bg-accent-400 disabled:opacity-50 disabled:cursor-default cursor-pointer";
 export const btnSecondary =
   "inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 disabled:opacity-50 cursor-pointer";
 export const btnDanger =

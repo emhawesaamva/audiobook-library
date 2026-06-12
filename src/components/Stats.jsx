@@ -7,7 +7,7 @@ import { inputCls, labelCls } from "./shared.jsx";
 function StatCard({ value, label, sub }) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="font-serif text-2xl font-bold">{value}</div>
+      <div className="text-2xl font-bold">{value}</div>
       <div className="mt-0.5 text-xs font-medium uppercase tracking-wider text-zinc-400">{label}</div>
       {sub && <div className="mt-0.5 text-xs text-zinc-400">{sub}</div>}
     </div>
@@ -47,7 +47,7 @@ function GoalRing({ label, current, target, unit }) {
           strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
       </svg>
       <div>
-        <div className="font-serif text-xl font-bold">{pct}%</div>
+        <div className="text-xl font-bold">{pct}%</div>
         <div className="text-sm text-zinc-500">{current} of {target} {unit}</div>
         <div className="text-xs text-zinc-400">{label}</div>
       </div>
@@ -117,7 +117,7 @@ export default function Stats({ books, goals, onSetGoal }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <h2 className="font-serif text-lg font-semibold">Your year in audiobooks</h2>
+        <h2 className="text-lg font-semibold">Your year in audiobooks</h2>
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${inputCls} !w-28`}>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -188,7 +188,7 @@ function GoalSetter({ label, year, onSet }) {
       </div>
       <button
         onClick={() => v > 0 && onSet(Number(v))}
-        className="rounded-lg bg-accent-500 px-3 py-2 text-sm font-semibold text-white hover:bg-accent-600 cursor-pointer"
+        className="rounded-lg bg-accent-500 px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-accent-400 cursor-pointer"
       >
         Set
       </button>

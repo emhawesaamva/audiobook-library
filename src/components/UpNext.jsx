@@ -24,7 +24,7 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
           <div key={b.id} className="group/q relative w-28 shrink-0">
             <div className="relative">
               <Cover book={b} className="aspect-[1/1.5] w-full" rounded="rounded-lg" />
-              <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent-500 text-[11px] font-bold text-white shadow">
+              <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent-500 text-[11px] font-bold text-zinc-900 shadow">
                 {i + 1}
               </span>
               <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 rounded-b-lg bg-black/60 py-1 opacity-0 transition group-hover/q:opacity-100">
