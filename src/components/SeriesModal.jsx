@@ -7,7 +7,51 @@ import { calcSeriesRating, fmtDuration } from "../lib/bookUtils.js";
 import { Pencil, Trash2, Heart } from "lucide-react";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
 
-export default function SeriesModal({ series, recommenders = [], onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
+// Crowd-rating sparkline across the volumes: does the series hold up?
+function SeriesQualityCurve({ books }) {
+  const rated = books
+    .filter((b) => Number(b.goodreads_rating) > 0)
+    .sort((a, b) => (a.series_position ?? 0) - (b.series_position ?? 0));
+  if (rated.length < 3) return null;
+
+  const vals = rated.map((b) => Number(b.goodreads_rating));
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const lo = Math.floor(min * 2) / 2 - 0.1, hi = Math.ceil(max * 2) / 2 + 0.1;
+  const W = 420, H = 60, PAD = 8;
+  const x = (i) => PAD + (i / (rated.length - 1)) * (W - PAD * 2);
+  const y = (v) => H - PAD - ((v - lo) / (hi - lo)) * (H - PAD * 2);
+  const points = vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const dipIdx = vals.indexOf(min);
+  const dipBook = rated[dipIdx];
+  const flat = max - min < 0.3;
+
+  return (
+    <div className="mb-3 rounded-lg border border-zinc-300/90 p-3 dark:border-zinc-800">
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Crowd ratings across the series</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {flat
+            ? "holds steady — safe to commit"
+            : `#${dipBook.series_position ?? dipIdx + 1} is the dip (${min}★)`}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 14}`} className="w-full">
+        <polyline points={points} fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {vals.map((v, i) => (
+          <g key={i}>
+            <circle cx={x(i)} cy={y(v)} r="3" fill="#f59e0b" />
+            <text x={x(i)} y={y(v) - 6} textAnchor="middle" className="fill-zinc-500 dark:fill-zinc-400" fontSize="9">{v}</text>
+            <text x={x(i)} y={H + 10} textAnchor="middle" className="fill-zinc-400 dark:fill-zinc-500" fontSize="9">
+              #{rated[i].series_position ?? i + 1}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+export default function SeriesModal({ series, recommenders = [], allTags = [], onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
@@ -55,6 +99,8 @@ export default function SeriesModal({ series, recommenders = [], onClose, onSave
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{subBooks.length} book{subBooks.length === 1 ? "" : "s"}</span>
           <button onClick={onEditHeader} className="ml-auto text-xs font-medium text-accent-600 hover:text-accent-700 cursor-pointer">Edit series</button>
         </div>
+
+        <SeriesQualityCurve books={subBooks} />
 
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Books in series</span>
@@ -126,6 +172,7 @@ export default function SeriesModal({ series, recommenders = [], onClose, onSave
         <BookForm
           book={subForm.id ? subForm : { author: series.author, genre: series.genre, subgenre: series.subgenre, status: "read" }}
           recommenders={recommenders}
+          allTags={allTags}
           isSub
           onSave={async (fields) => { await onSaveSub(subForm.id ?? null, fields); setSubForm(null); }}
           onClose={() => setSubForm(null)}

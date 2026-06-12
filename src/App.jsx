@@ -77,12 +77,21 @@ function CreateFirstLibrary({ onCreate }) {
 const FILTERS = [
   ["all", "All"], ["recommended", "Rec"], ["loved", "Loved"],
   ["read", "Read"], ["reading", "Listening"], ["want", "Want"], ["dnf", "DNF"],
+  ["crowd", "Crowd 4.5+"],
 ];
 
 const SORTS = [
-  ["status", "Status"], ["rating", "Rating"], ["recent", "Recently added"],
-  ["title", "Title A–Z"], ["author", "Author A–Z"], ["duration", "Length"],
+  ["status", "Status"], ["rating", "Rating"], ["crowd", "Crowd rating"],
+  ["recent", "Recently added"], ["title", "Title A–Z"], ["author", "Author A–Z"],
+  ["duration", "Length"],
 ];
+
+// Best public rating attached to an entry (series use their best volume).
+const crowdRating = (b) =>
+  Math.max(
+    Number(b.goodreads_rating) || 0,
+    ...(b.books ?? []).map((c) => Number(c.goodreads_rating) || 0)
+  );
 
 export default function App({ session, onSignOut }) {
   const uid = session.user.id;
@@ -230,7 +239,14 @@ export default function App({ session, onSignOut }) {
           ];
           const isExcluded = (title) => excludeTitles.some((t) => sameTitle(t, title));
           const lovedAuthors = [...new Set(current.filter((b) => b.loved || Number(b.rating) >= 5).map((b) => b.author).filter(Boolean))];
-          const query = `Find me an audiobook ${lovedAuthors.length ? `similar to books by these loved authors: ${lovedAuthors.join(", ")}` : "that is highly rated and popular"}. Already in my library — do not suggest these: ${excludeTitles.join(", ") || "none"}. Return one well-known match.`;
+          // Cold start (empty library): no assumptions about taste — pull
+          // highly rated crowd-pleasers, each from a different genre, with
+          // some randomness so every new library starts differently.
+          const isEmpty = books.length === 0;
+          const recGenres = current.filter((b) => b.status === "recommended").map((b) => b.genre).filter(Boolean);
+          const query = isEmpty
+            ? `This library is brand new and completely empty — assume NOTHING about taste. Recommend one broadly beloved, very highly rated audiobook. Be a little random and surprising in your pick rather than defaulting to the single most famous option.${recGenres.length ? ` It must be from a COMPLETELY different genre than: ${recGenres.join(", ")}.` : ""} Do not suggest: ${excludeTitles.join(", ") || "none"}.`
+            : `Find me an audiobook ${lovedAuthors.length ? `similar to books by these loved authors: ${lovedAuthors.join(", ")}` : "that is highly rated and popular"}. Already in my library — do not suggest these: ${excludeTitles.join(", ") || "none"}. Return one well-known match.`;
           let rec = null;
           try {
             const result = await fetchRecommendations({
@@ -353,6 +369,18 @@ export default function App({ session, onSignOut }) {
     return all.filter((b) => b.queue_position != null).sort((a, b) => a.queue_position - b.queue_position);
   }, [books]);
 
+  // Crowd-favorite nudge when the queue is empty: best publicly rated
+  // Want-to-Listen book.
+  const crowdPick = useMemo(() => {
+    const candidates = flattenBooks(books).filter(
+      (b) => b.status === "wanttoread" && Number(b.goodreads_rating) >= 4
+    );
+    if (!candidates.length) return null;
+    return candidates.reduce((a, b) =>
+      Number(b.goodreads_rating) > Number(a.goodreads_rating) ? b : a
+    );
+  }, [books]);
+
   const queueToggle = guard(async (book) => {
     const queued = book.queue_position != null;
     await db.updateBook(book.id, {
@@ -397,16 +425,22 @@ export default function App({ session, onSignOut }) {
 
   // ---- filtering & sorting ----
   // Filter dropdown only offers genres actually present in this library
-  // (including inside series) — never the full master list.
+  // (including inside series) — never the full master list. "All genres"
+  // is prepended after sorting so it is always first.
   const genres = useMemo(
-    () => ["all", ...new Set([...books, ...flattenBooks(books)].map((b) => b.genre).filter(Boolean))]
-      .sort((a, b) => (a === "all" ? -1 : a.localeCompare(b))),
+    () => ["all", ...[...new Set([...books, ...flattenBooks(books)].map((b) => b.genre).filter(Boolean))].sort((a, b) => a.localeCompare(b))],
     [books]
   );
 
   // Distinct "recommended by" values across the library, for form typeahead.
   const recommenders = useMemo(
     () => [...new Set([...books, ...flattenBooks(books)].map((b) => b.recommended_by).filter(Boolean))].sort(),
+    [books]
+  );
+
+  // Distinct tags across the library, for the tag-chip suggestions.
+  const allTags = useMemo(
+    () => [...new Set([...books, ...flattenBooks(books)].flatMap((b) => b.tags ?? []))].sort(),
     [books]
   );
 
@@ -428,6 +462,7 @@ export default function App({ session, onSignOut }) {
       if (filter === "want" && st !== "wanttoread") return false;
       if (filter === "recommended" && st !== "recommended") return false;
       if (filter === "dnf" && st !== "dnf") return false;
+      if (filter === "crowd" && crowdRating(b) < 4.5) return false;
       if (genre !== "all" && b.genre !== genre) return false;
       if (minRating > 0 && calcSeriesRating(b) < minRating) return false;
       if (q && !matches(b) && !b.books?.some(matches)) return false;
@@ -455,6 +490,7 @@ export default function App({ session, onSignOut }) {
       const ra = calcSeriesRating(a), rb = calcSeriesRating(b);
       switch (sortBy) {
         case "rating": return rb - ra || (a.title ?? "").localeCompare(b.title ?? "");
+        case "crowd": return crowdRating(b) - crowdRating(a) || (a.title ?? "").localeCompare(b.title ?? "");
         case "title": return (a.title ?? "").localeCompare(b.title ?? "");
         case "author": return (a.author ?? "").localeCompare(b.author ?? "");
         case "recent": return new Date(b.created_at) - new Date(a.created_at);
@@ -536,10 +572,10 @@ export default function App({ session, onSignOut }) {
               <button
                 key={p.id}
                 onClick={() => p.id !== activeId && selectProfile(p.id)}
-                className={`rounded-lg px-2.5 py-1 text-sm font-medium transition cursor-pointer ${
+                className={`rounded-t-lg border px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
                   p.id === activeId
-                    ? "bg-accent-100 text-accent-700 dark:bg-accent-700/20 dark:text-accent-400"
-                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? "border-accent-500 bg-accent-500 text-zinc-900"
+                    : "border-zinc-300/90 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 }`}
               >
                 {p.name}
@@ -575,7 +611,7 @@ export default function App({ session, onSignOut }) {
             />
             <ToolbarButton
               label={size === "large" ? "Compact view" : "Larger view"}
-              icon={<ALargeSmall className="h-4 w-4 shrink-0" />}
+              icon={<ALargeSmall className="h-[19px] w-[19px] shrink-0" />}
               onClick={() => {
                 const next = size === "large" ? "compact" : "large";
                 setSize(next);
@@ -626,6 +662,17 @@ export default function App({ session, onSignOut }) {
         {tab === "library" && (
           <>
             <UpNext queue={queue} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
+            {queue.length === 0 && crowdPick && (
+              <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-accent-200/70 bg-accent-50/50 px-3 py-2.5 text-sm dark:border-accent-700/30 dark:bg-accent-700/5">
+                <span>
+                  🎯 Your queue is empty — the crowd says start with{" "}
+                  <strong>{crowdPick.title}</strong> ({Number(crowdPick.goodreads_rating)}★)
+                </span>
+                <button onClick={() => queueToggle(crowdPick)} className="ml-auto shrink-0 rounded-md bg-accent-500 px-2.5 py-1 text-xs font-bold text-zinc-900 hover:bg-accent-400 cursor-pointer">
+                  Add to Up Next
+                </button>
+              </div>
+            )}
 
             {/* toolbar */}
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -744,6 +791,7 @@ export default function App({ session, onSignOut }) {
         <BookForm
           book={form.book}
           recommenders={recommenders}
+          allTags={allTags}
           seriesList={books.filter((b) => b.is_series)}
           onSave={saveBook}
           onSaveSeries={saveSeries}
@@ -756,6 +804,7 @@ export default function App({ session, onSignOut }) {
         <SeriesModal
           series={activeSeries}
           recommenders={recommenders}
+          allTags={allTags}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
           onSaveSub={async (id, fields) => {

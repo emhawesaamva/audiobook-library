@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { flattenBooks, fmtDuration } from "../lib/bookUtils.js";
 import { inputCls, labelCls } from "./shared.jsx";
-import { Ruler, Repeat, Ban, Users, Flame } from "lucide-react";
+import { Ruler, Repeat, Ban, Users, Flame, Gem, UserRound } from "lucide-react";
 
 function StatCard({ value, label, sub }) {
   return (
@@ -100,19 +100,40 @@ export default function Stats({ books, goals, onSetGoal }) {
 
     // "You vs the crowd": books carrying both your rating and a public one.
     const pairs = finishedEver.filter((b) => Number(b.rating) > 0 && Number(b.goodreads_rating) > 0);
+    const delta = (b) => Number(b.rating) - Number(b.goodreads_rating);
     let crowd = null;
     if (pairs.length >= 3) {
-      const delta = (b) => Number(b.rating) - Number(b.goodreads_rating);
       const avgDelta = pairs.reduce((s, b) => s + delta(b), 0) / pairs.length;
       const agree = pairs.filter((b) => Math.abs(delta(b)) <= 0.5).length;
       const spiciest = pairs.reduce((a, b) => (Math.abs(delta(b)) > Math.abs(delta(a)) ? b : a));
+      const yearPairs = pairs.filter(inYear);
       crowd = {
         n: pairs.length,
         avgDelta: Math.round(avgDelta * 10) / 10,
         agreePct: Math.round((agree / pairs.length) * 100),
+        yearAgreePct: yearPairs.length >= 3
+          ? Math.round((yearPairs.filter((b) => Math.abs(delta(b)) <= 0.5).length / yearPairs.length) * 100)
+          : null,
         spiciest,
       };
     }
+
+    // Hidden gems: you loved these well beyond the public.
+    const gems = pairs.filter((b) => delta(b) >= 1).sort((a, b) => delta(b) - delta(a)).slice(0, 5);
+
+    // Contrarian authors: where your taste consistently diverges (2+ books).
+    const byAuthor = new Map();
+    for (const b of pairs) {
+      if (!b.author) continue;
+      if (!byAuthor.has(b.author)) byAuthor.set(b.author, []);
+      byAuthor.get(b.author).push(delta(b));
+    }
+    const contrarians = [...byAuthor.entries()]
+      .filter(([, ds]) => ds.length >= 2)
+      .map(([author, ds]) => ({ author, n: ds.length, delta: Math.round((ds.reduce((s, d) => s + d, 0) / ds.length) * 10) / 10 }))
+      .filter((a) => Math.abs(a.delta) >= 0.5)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 4);
 
     return {
       finishedEver: finishedEver.length,
@@ -122,7 +143,7 @@ export default function Stats({ books, goals, onSetGoal }) {
       topAuthors: tally(finishedEver, "author"),
       topNarrators: tally(finishedEver, "narrator"),
       topGenres: tally(finishedEver, "genre"),
-      dist, longest, dnf, crowd,
+      dist, longest, dnf, crowd, gems, contrarians,
       rereads: flat.reduce((s, b) => s + (b.reread_count ?? 0), 0),
     };
   }, [flat, year]);
@@ -197,6 +218,9 @@ export default function Stats({ books, goals, onSetGoal }) {
                     <> and rate <strong>{Math.abs(stats.crowd.avgDelta)}★ {stats.crowd.avgDelta < 0 ? "tougher" : "kinder"}</strong></>
                   )}
                   {" "}({stats.crowd.n} books compared)
+                  {stats.crowd.yearAgreePct != null && (
+                    <> · in {year}: <strong>{stats.crowd.yearAgreePct}%</strong>{stats.crowd.yearAgreePct < stats.crowd.agreePct ? " — your spiciest year yet?" : ""}</>
+                  )}
                 </span>
               </p>
               <p className="flex items-center gap-2"><Flame className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
@@ -209,6 +233,46 @@ export default function Stats({ books, goals, onSetGoal }) {
           {!stats.longest && <p className="text-zinc-500 dark:text-zinc-400">Add durations to books (autofill does this) to unlock listening-time stats.</p>}
         </div>
       </div>
+
+      {/* hidden gems + contrarian authors */}
+      {(stats.gems.length > 0 || stats.contrarians.length > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {stats.gems.length > 0 && (
+            <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <Gem className="h-3.5 w-3.5" /> Your hidden gems
+              </div>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">You loved these well beyond the crowd — your best personal recommendations.</p>
+              <div className="space-y-1.5 text-sm">
+                {stats.gems.map((b) => (
+                  <div key={b.id} className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-medium">{b.title}</span>
+                    <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">you {Number(b.rating)}★ · crowd {Number(b.goodreads_rating)}★</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {stats.contrarians.length > 0 && (
+            <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <UserRound className="h-3.5 w-3.5" /> Contrarian takes
+              </div>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">Authors where your taste consistently diverges from the world's (2+ books).</p>
+              <div className="space-y-1.5 text-sm">
+                {stats.contrarians.map((a) => (
+                  <div key={a.author} className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-medium">{a.author}</span>
+                    <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+                      you like them {Math.abs(a.delta)}★ {a.delta > 0 ? "more" : "less"} than the world ({a.n} books)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

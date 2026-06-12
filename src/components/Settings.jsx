@@ -28,6 +28,7 @@ export default function Settings({
   const [importing, setImporting] = useState(null); // {total, done, enrich} during import
   const [enrich, setEnrich] = useState(true);
   const [paste, setPaste] = useState(null); // null | {step:"input",text} | {step:"review",items,note}
+  const [triage, setTriage] = useState(null); // post-import crowd suggestions
   const [identifying, setIdentifying] = useState(false);
   const fileRef = useRef(null);
   const lastProfile = profiles.length <= 1;
@@ -81,6 +82,13 @@ export default function Settings({
           (note ? ` (${note})` : "") +
           (skippedRows ? ` (${skippedRows} rows skipped)` : ""),
       });
+      // Import triage: surface the crowd's favorite unread imports as a
+      // ready-made starting point.
+      const top = toCreate
+        .filter((b) => b.status === "wanttoread" && Number(b.goodreads_rating) > 0)
+        .sort((a, b) => Number(b.goodreads_rating) - Number(a.goodreads_rating))
+        .slice(0, 3);
+      if (top.length >= 2) setTriage({ imported: toCreate.length, top });
     } catch (err) {
       onToast?.({ text: `Import failed: ${err.message}`, isError: true });
     }
@@ -283,6 +291,23 @@ export default function Settings({
           <button onClick={onSignOut} className={`${btnSecondary} !py-1.5 text-xs`}>Sign out</button>
         </div>
       </div>
+
+      {triage && (
+        <Dialog title="Where to start" onClose={() => setTriage(null)}>
+          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
+            {triage.imported} books imported. Of the ones you haven't listened to yet, the crowd loves these most:
+          </p>
+          <div className="mb-4 space-y-2">
+            {triage.top.map((b, i) => (
+              <div key={i} className="flex items-baseline justify-between gap-2 rounded-lg border border-zinc-300/90 px-3 py-2 text-sm dark:border-zinc-800">
+                <span className="truncate font-medium">{i + 1}. {b.title}</span>
+                <span className="shrink-0 text-xs font-semibold text-accent-600">★ {Number(b.goodreads_rating)}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setTriage(null)} className={`${btnPrimary} w-full`}>Got it</button>
+        </Dialog>
+      )}
 
       {paste && (
         <PasteImportDialog
