@@ -3,7 +3,7 @@
 // real metadata (cover, narrator, duration) before saving. With a Libby
 // library code configured, each pick also shows live library availability.
 import { useState, useEffect } from "react";
-import { Dialog, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
+import { Dialog, Spinner, Stars, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
 import { flattenBooks, libbySearchUrl, sameTitle } from "../lib/bookUtils.js";
@@ -83,6 +83,25 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
     }
     return () => { cancelled = true; };
   }, [libbyKey, res]);
+
+  // Public Audible star ratings per pick — catalog API, no AI involved.
+  const [publicRatings, setPublicRatings] = useState({});
+  useEffect(() => {
+    if (!res?.recommendations?.length) return;
+    let cancelled = false;
+    for (const r of res.recommendations) {
+      if (publicRatings[r.title]) continue;
+      searchBooks(`${r.title} ${r.author}`, 3)
+        .then(({ results }) => {
+          if (cancelled) return;
+          const hit = results.find((x) => sameTitle(x.title, r.title)) ?? results[0];
+          if (hit?.public_rating) setPublicRatings((m) => ({ ...m, [r.title]: hit.public_rating }));
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [res]);
   // Fuzzy "already in the library" check: catches subtitle/punctuation/article
   // variants ("Project Hail Mary: A Novel" vs "Project Hail Mary").
   const libraryTitles = [...books, ...flattenBooks(books)].map((b) => b.title);
@@ -182,6 +201,14 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
               <span className="text-base font-semibold">{r.title}</span>
               <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400">{r.author}</span>
               {r.year && <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">{r.year}</span>}
+              {publicRatings[r.title] && (
+                <span className="ml-2 inline-flex items-center gap-1 whitespace-nowrap align-middle">
+                  <Stars rating={publicRatings[r.title].average} size="text-xs" />
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {publicRatings[r.title].average} ({publicRatings[r.title].count.toLocaleString()})
+                  </span>
+                </span>
+              )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
               {libbyKey ? (

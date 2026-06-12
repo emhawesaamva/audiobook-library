@@ -4,7 +4,7 @@
 // and iTunes are cover/author fallbacks when Audible has nothing.
 
 const AUDIBLE = "https://api.audible.com/1.0/catalog/products";
-const RESPONSE_GROUPS = "contributors,media,product_attrs,series,category_ladders";
+const RESPONSE_GROUPS = "contributors,media,product_attrs,series,category_ladders,rating";
 const UA = { "User-Agent": "Mozilla/5.0 (AudiobookLibrary/2.0)" };
 
 // Map Audible category ladders onto the app's genre list. Deepest rungs are
@@ -62,8 +62,12 @@ function categoriesToGenre(ladders) {
 function normalizeProduct(p) {
   const series = (p.series ?? []).find((s) => s.sequence) ?? (p.series ?? [])[0] ?? null;
   const img = p.product_images ? Object.values(p.product_images)[0] : null;
+  const dist = p.rating?.overall_distribution;
   return {
     ...categoriesToGenre(p.category_ladders),
+    public_rating: dist?.num_ratings
+      ? { average: Math.round(dist.average_rating * 10) / 10, count: dist.num_ratings }
+      : null,
     asin: p.asin,
     title: p.title,
     subtitle: p.subtitle ?? null,
