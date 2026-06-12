@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, Stars, Cover, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
-import { GENRES, STATUS_LABEL } from "../lib/bookUtils.js";
+import { GENRE_GROUPS, STATUS_LABEL } from "../lib/bookUtils.js";
 import { Heart } from "lucide-react";
 
 const EMPTY = {
@@ -281,7 +281,7 @@ export default function BookForm({
           <div className="mb-3 grid grid-cols-2 gap-3">
             <Field label="Genre">
               <select value={f.genre} onChange={(e) => s("genre", e.target.value)} className={inputCls}>
-                {GENRES.map((g) => <option key={g}>{g}</option>)}
+                {Object.entries(GENRE_GROUPS).map(([group, list]) => group ? <optgroup key={group} label={group}>{list.map((g) => <option key={g}>{g}</option>)}</optgroup> : list.map((g) => <option key={g}>{g}</option>))}
               </select>
             </Field>
             <Field label="Subgenre">
@@ -310,7 +310,7 @@ export default function BookForm({
           <div className="grid grid-cols-2 gap-3">
             <Field label="Genre">
               <select value={f.genre ?? "Other"} onChange={(e) => s("genre", e.target.value)} className={inputCls}>
-                {GENRES.map((g) => <option key={g}>{g}</option>)}
+                {Object.entries(GENRE_GROUPS).map(([group, list]) => group ? <optgroup key={group} label={group}>{list.map((g) => <option key={g}>{g}</option>)}</optgroup> : list.map((g) => <option key={g}>{g}</option>))}
               </select>
             </Field>
             <Field label="Subgenre">

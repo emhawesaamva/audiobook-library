@@ -58,7 +58,7 @@ READING NOW: ${reading || "nothing"}
 Only recommend real, well-known audiobooks you are confident exist.
 
 Return JSON only, no markdown:
-{"recommendations":[{"title":"","author":"","year":"","why":"one direct line","similarity":"most like: [title]","genre":"Science Fiction","subgenre":""}],"note":""}`;
+{"headline":"one short, punchy, enthusiastic sentence reacting to what they asked for — make them excited to scroll; no emoji","recommendations":[{"title":"","author":"","year":"","why":"one direct line","similarity":"most like: [title]","genre":"Science Fiction","subgenre":""}],"note":""}`;
 
   const d = await claudeFetch({
     model: model || "claude-sonnet-4-6",
@@ -73,7 +73,7 @@ Return JSON only, no markdown:
   if (!jsonStr) throw new Error("No JSON found in response");
   const parsed = JSON.parse(jsonStr);
   const recs = (parsed.recommendations ?? []).filter((r) => r.title && r.author);
-  return { recommendations: recs, note: parsed.note ?? "" };
+  return { recommendations: recs, note: parsed.note ?? "", headline: parsed.headline ?? "" };
 }
 
 // Turn arbitrary pasted text (notes-app lists, numbered lists, random junk)

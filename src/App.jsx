@@ -370,8 +370,11 @@ export default function App({ session, onSignOut }) {
   };
 
   // ---- filtering & sorting ----
+  // Filter dropdown only offers genres actually present in this library
+  // (including inside series) — never the full master list.
   const genres = useMemo(
-    () => ["all", ...new Set(books.map((b) => b.genre).filter(Boolean))].sort((a, b) => (a === "all" ? -1 : a.localeCompare(b))),
+    () => ["all", ...new Set([...books, ...flattenBooks(books)].map((b) => b.genre).filter(Boolean))]
+      .sort((a, b) => (a === "all" ? -1 : a.localeCompare(b))),
     [books]
   );
 

@@ -68,6 +68,8 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
   const [added, setAdded] = useState({});
   const [libbyStatus, setLibbyStatus] = useState({});
   const [libbySetup, setLibbySetup] = useState(null); // book whose badge was clicked
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastQ, setLastQ] = useState("");
 
   // Best-effort availability check at the user's library for each pick.
   useEffect(() => {
@@ -90,6 +92,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
     if (!q.trim() || loading) return;
     setLoading(true);
     setRes(null);
+    setLastQ(q);
     try {
       const result = await fetchRecommendations({ books, profileName, ageGroup, query: q, model });
       result.recommendations = result.recommendations.filter((r) => !existingTitles.has(r.title.toLowerCase()));
@@ -98,6 +101,25 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
       setRes({ error: true, msg: e.message });
     }
     setLoading(false);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !res?.recommendations) return;
+    setLoadingMore(true);
+    const shown = res.recommendations.map((r) => r.title);
+    try {
+      const result = await fetchRecommendations({
+        books, profileName, ageGroup, model,
+        query: `${lastQ}\n\nGive me 5 MORE recommendations for the same request. Do not repeat any of these already-suggested titles: ${shown.join(", ")}.`,
+      });
+      const seen = new Set([...existingTitles, ...shown.map((t) => t.toLowerCase())]);
+      const fresh = result.recommendations.filter((r) => !seen.has(r.title.toLowerCase()));
+      setRes((p) => ({ ...p, recommendations: [...p.recommendations, ...fresh] }));
+      if (!fresh.length) onToast?.({ text: "No new suggestions this round — try refining the search" });
+    } catch (e) {
+      onToast?.({ text: e.message, isError: true });
+    }
+    setLoadingMore(false);
   };
 
   const handleAdd = async (r) => {
@@ -147,6 +169,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
       {res?.error && (
         <p className="text-sm text-red-600 dark:text-red-400">Something went wrong{res.msg ? `: ${res.msg}` : "."}</p>
       )}
+      {res?.headline && <p className="text-base font-bold">{res.headline}</p>}
       {res?.note && <p className="text-sm italic text-zinc-600 dark:text-zinc-400">{res.note}</p>}
       {res?.recommendations?.length === 0 && <p className="text-sm text-zinc-500 dark:text-zinc-400">No new results found.</p>}
 
@@ -201,6 +224,12 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
           </div>
         </div>
       ))}
+
+      {res?.recommendations?.length > 0 && (
+        <button onClick={loadMore} disabled={loadingMore} className={`${btnSecondary} w-full`}>
+          {loadingMore ? <><Spinner /> Finding more…</> : "More recommendations"}
+        </button>
+      )}
 
       {libbySetup && (
         <LibbySetupDialog
