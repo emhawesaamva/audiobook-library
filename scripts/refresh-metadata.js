@@ -89,10 +89,21 @@ for (const [key, group] of byProfileSeries) {
   const childTitles = existing
     ? new Set(books.filter((b) => b.parent_id === existing.id).map((b) => norm(b.title)))
     : new Set();
-  const movers = group.filter((c) => !childTitles.has(norm(c.book.title)));
-  const dupes = group.filter((c) => childTitles.has(norm(c.book.title)));
-  for (const d of dupes) {
-    console.log(`  DUPLICATE (left alone): "${d.book.title}" already inside "${existing.title}"`);
+  const seen = new Set();
+  const movers = [];
+  for (const c of group) {
+    const k = norm(c.book.title);
+    if (childTitles.has(k)) {
+      console.log(`  DUPLICATE (left alone): "${c.book.title}" already inside "${existing.title}"`);
+    } else if (seen.has(k)) {
+      console.log(`  DUPLICATE COPIES (left alone): "${c.book.title}" exists twice as standalone — clean up manually`);
+      // also pull the first copy back out of the plan; don't group dup pairs
+      const i = movers.findIndex((m) => norm(m.book.title) === k);
+      if (i !== -1) movers.splice(i, 1);
+    } else {
+      seen.add(k);
+      movers.push(c);
+    }
   }
   if (!movers.length) continue;
   if (!existing && movers.length < 2) continue; // no one-book series
