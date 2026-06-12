@@ -57,7 +57,6 @@ const FILTERS = [
   ["read", "Read"],
   ["reading", "Listening"],
   ["wanttoread", "Want to Listen"],
-  ["recommended", "Recommended"],
   ["crowd", "Crowd 4.5+"],
   ["loved", "Loved"],
 ];
@@ -425,7 +424,7 @@ export default function PublicProfile({ profileId }) {
         )}
 
         {tab === "stats" && (
-          <Stats books={books} goals={[]} onSetGoal={() => {}} readOnly />
+          <Stats books={books} goals={[]} onSetGoal={() => {}} readOnly title="My year in audiobooks" possessive="My" />
         )}
       </main>
 
