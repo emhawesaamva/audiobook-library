@@ -92,7 +92,7 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
             <a
               href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
               target="_blank" rel="noopener noreferrer"
-              className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400"
+              className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
             >
               AUDIBLE ↗
             </a>
