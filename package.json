@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backup": "node scripts/backup-legacy.js",
+    "migrate": "node scripts/migrate-legacy.js",
+    "verify-migration": "node scripts/verify-migration.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

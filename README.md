@@ -1,68 +1,66 @@
 # Audiobook Library
 
-A personal audiobook tracking and recommendation app built with React, Vite, and Supabase.
+A multi-user audiobook tracking and recommendation app built with React, Vite, Tailwind CSS, and Supabase. Live at https://emslibrary.vercel.app.
 
 ## What it is
 
-Audiobook Library is a private, PIN-protected web app for tracking your audiobook collection and getting personalized recommendations. It supports multiple profiles, so each person in your household can maintain their own separate library.
+Sign in with Google (or email/password), create one or more **libraries** (per person, per genre — up to you), and track your audiobooks with covers, narrators, runtimes, ratings, and listening history. Claude-powered recommendations learn from what you love.
 
 ## Features
 
-- **Library management** — Add, edit, and organize audiobooks by genre, subgenre, status, and rating. Mark books as Read, Reading, Want to Read, or Recommended.
-- **Series support** — Group books into series with individual ratings per volume.
-- **Multi-profile** — Create separate libraries for different people. Each profile is stored independently.
-- **Profile types** — Set each profile as Adult, Teens, or Children to tailor recommendations appropriately.
-- **AI recommendations** — Search for recommendations by describing what you're looking for. The app queries the Claude API with web search to find verified suggestions with Goodreads ratings.
-- **Auto-recommendations** — On each app open, the app silently checks whether your library has two recommended books. If not, it queries Claude in the background and populates them automatically based on your loved books and authors.
-- **Rejection memory** — Deleting a recommended book saves it to a per-profile rejection list so the same book is never suggested again.
-- **Audible integration** — Every book card has a direct link to search Audible for that title.
-- **Persistent storage** — All data is stored in Supabase. Changes sync immediately and a snapshot is saved on every session open for history.
-- **PIN lock** — The app is protected by a 4-digit PIN with a hashed key stored in environment variables.
+- **Effortless adding** — search-as-you-type against Audible's catalog autofills title, author, narrator, runtime, cover art, year, and series info. Manual entry always available.
+- **One-click series** — pick any book in a series and add the entire series (all volumes, ordered, with covers) in a single click. Existing series can fetch their missing volumes.
+- **Three views** — cover grid (bookshelf), card grid, and a sortable list.
+- **Rich tracking** — half-star ratings, Read / Listening / Want to Listen / Recommended / DNF (with reason and % reached), start/finish dates (auto-set on status changes), re-listen history, loved flags, tags, notes, and "recommended by" provenance.
+- **Up Next queue** — a small ordered strip of what you'll listen to next, separate from the full want list.
+- **Stats & goals** — listening hours, yearly book/hour goals with progress rings, top authors/narrators/genres, rating distribution, per-year review.
+- **AI recommendations** — describe a mood or ask for "more like X"; Claude answers grounded in your loved books and authors, with age-appropriate filtering per library (Adult / Teens / Children). The app also quietly keeps two fresh recommendations waiting in each library, and deleting one teaches it never to suggest that book again.
+- **Import & export** — Goodreads CSV import (with optional metadata enrichment), CSV/JSON export.
+- **Multi-user** — accounts are isolated by Postgres row-level security. Each user gets their own libraries and settings.
+- **Admin** — the owner account sees an Admin tab: user list with usage, disable-signups switch.
 
-## Tech stack
+## Stack
 
-- **Frontend** — React 18, Vite
-- **Database** — Supabase (PostgreSQL via PostgREST)
-- **AI** — Anthropic Claude API (Sonnet for recommendations with web search, Haiku for book lookup)
-- **Hosting** — Runs locally via Vite dev server; deployable to Vercel or Netlify with a proxy function for the Anthropic API key
-
-## Setup
-
-1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Copy `.env.example` to `.env` and fill in your keys:
-   ```
-   cp .env.example .env
-   ```
-4. Generate a hashed PIN for the lock screen:
-   ```
-   node -e "require('crypto').createHash('sha256').update('YOUR_PIN').digest('hex')"
-   ```
-   Paste the output into `VITE_PIN_HASH` in your `.env`.
-5. Start the dev server:
-   ```
-   npm run dev
-   ```
-
-## Environment variables
-
-| Variable | Description |
+| Layer | Tech |
 |---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key — [console.anthropic.com](https://console.anthropic.com) |
-| `VITE_PIN_HASH` | SHA-256 hash of your 4-digit access PIN |
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key |
-| `SUPABASE_SECRET_KEY` | Supabase secret key (server-side proxy only) |
+| Frontend | React 18, Vite, Tailwind CSS v4 |
+| Auth | Supabase Auth (Google OAuth + email/password) |
+| Database | Supabase Postgres with RLS (`supabase/schema.sql`, `supabase/rls.sql`) |
+| AI | Claude API (Sonnet for recommendations, Haiku for identification) via serverless proxy |
+| Metadata | Audible catalog API (narrator/runtime/series/covers), Open Library + iTunes fallbacks via `api/metadata.js` |
+| Hosting | Vercel (static build + serverless functions in `api/`) |
 
-## Database
+## Local development
 
-The app uses a single Supabase table `audiobook_library` with three columns:
+```bash
+npm install
+cp .env.example .env   # fill in keys (see comments in the file)
+npm run dev
+```
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | text (PK) | Row identifier, e.g. `em-library`, `library-profiles` |
-| `data` | jsonb | The stored payload |
-| `updated_at` | timestamptz | Auto-set by Supabase |
+The Vite dev server proxies `/v1/*` to Anthropic (key injected server-side) and serves the same `/api/*` handlers Vercel runs in production.
+
+## Database setup (one-time)
+
+Run in order against a fresh Supabase project (SQL editor, or `node scripts/run-sql.js <file>` with a `SUPABASE_ACCESS_TOKEN`):
+
+1. `supabase/schema.sql` — tables, triggers, seed settings
+2. `supabase/rls.sql` — row-level security policies
+
+Then in the Supabase dashboard:
+
+1. **Auth → Providers**: enable **Email**, and **Google** (needs a Google Cloud OAuth client; authorized redirect URI is `https://YOUR_PROJECT.supabase.co/auth/v1/callback`)
+2. **Auth → URL Configuration**: Site URL = your production URL; add `http://localhost:5173` to additional redirect URLs
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run backup` | Dump the legacy `audiobook_library` table to `backups/` |
+| `npm run migrate` | One-time legacy → relational migration (`OWNER_EMAIL=... npm run migrate`) |
+| `npm run verify-migration` | Verify migrated counts/fields against the legacy data |
+| `node scripts/run-sql.js <file.sql>` | Run SQL via the Supabase Management API |
+
+## Vercel environment variables
+
+`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (server-side), plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (bundled into the frontend).

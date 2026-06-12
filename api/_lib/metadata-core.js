@@ -124,7 +124,11 @@ export async function seriesVolumes(seriesAsin) {
   const volumes = [...byPosition.values()]
     .filter((v) => !v.language || v.language === "english")
     .sort((a, b) => a.position - b.position);
-  return { series: seriesTitle, volumes };
+  // The series product often lacks a title; fall back to what the volumes say.
+  const fallbackTitle = volumes
+    .map((v) => v.series)
+    .find((s) => s?.asin === seriesAsin)?.title ?? volumes[0]?.series?.title ?? null;
+  return { series: seriesTitle || fallbackTitle, volumes };
 }
 
 // Connect/Vercel-compatible request handler.
