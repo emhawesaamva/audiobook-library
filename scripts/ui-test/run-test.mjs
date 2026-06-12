@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, 'shots');
 mkdirSync(SHOTS, { recursive: true });
 
-const BASE = 'http://localhost:5173';
+const BASE = process.env.UI_TEST_BASE || 'http://localhost:5173';
 const EMAIL = 'ui-test@library-integration.test';
 const PASSWORD = 'ui-test-password-1234';
 const T = 25000; // generous default timeout (metadata API can take seconds)
