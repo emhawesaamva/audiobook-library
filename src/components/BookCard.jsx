@@ -56,7 +56,7 @@ function MenuButton({ open, setOpen }) {
 }
 
 function LovedCorner() {
-  return <div className="absolute right-0 top-0 h-0 w-0 border-r-[18px] border-t-[18px] border-r-transparent border-t-accent-500" style={{ borderRightColor: "transparent" }} />;
+  return <div className="absolute right-0 top-0 h-0 w-0 rounded-tr-xl" style={{ borderWidth: "0 18px 18px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
 }
 
 function seriesMeta(book) {
@@ -78,7 +78,7 @@ export function BookCardGrid({ book, onEdit, onDelete, onOpen, onQueueToggle }) 
       <div className="flex gap-3">
         <Cover book={book} className="h-24 w-16 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-serif text-[15px] font-semibold leading-snug">
+          <div className="truncate text-[15px] font-semibold leading-snug">
             {book.title}
             {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series ›</span>}
           </div>
@@ -154,7 +154,7 @@ export function BookListRow({ book, onEdit, onDelete, onOpen, onQueueToggle }) {
     >
       <Cover book={book} className="h-14 w-9 shrink-0" rounded="rounded" />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-serif text-sm font-semibold">
+        <div className="truncate text-sm font-semibold">
           {book.title}
           {book.loved && <span className="ml-1 text-accent-500">⭐</span>}
           {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series · {seriesMeta(book)} ›</span>}

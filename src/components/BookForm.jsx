@@ -187,7 +187,7 @@ export default function BookForm({
       {seriesPanel ? (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
-            <h3 className="font-serif text-base font-semibold">{seriesPanel.title}</h3>
+            <h3 className="text-base font-semibold">{seriesPanel.title}</h3>
             <button onClick={() => setSeriesPanel(null)} className="text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer">← single book instead</button>
           </div>
           <div className="mb-3 max-h-72 space-y-1 overflow-y-auto rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">

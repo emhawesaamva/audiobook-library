@@ -85,7 +85,7 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
         <div key={i} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="font-serif text-base font-semibold">{r.title}</span>
+              <span className="text-base font-semibold">{r.title}</span>
               <span className="ml-2 text-sm text-zinc-500">{r.author}</span>
               {r.year && <span className="ml-2 text-xs text-zinc-400">{r.year}</span>}
             </div>

@@ -35,7 +35,7 @@ function CreateFirstLibrary({ onCreate }) {
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 text-3xl">📚</div>
-        <h2 className="font-serif text-lg font-semibold">Create your first library</h2>
+        <h2 className="text-lg font-semibold">Create your first library</h2>
         <p className="mb-4 mt-1 text-sm text-zinc-500">
           Libraries keep collections separate — one per person, or per genre, or however you like.
         </p>
@@ -459,7 +459,7 @@ export default function App({ session, onSignOut }) {
                   placeholder="Name…"
                   className="w-28 rounded-lg border border-zinc-300 px-2 py-1 text-sm outline-none focus:border-accent-500 dark:border-zinc-700 dark:bg-zinc-900"
                 />
-                <button onClick={addProfile} className="rounded-lg bg-accent-500 px-2 py-1 text-xs font-bold text-white cursor-pointer">Add</button>
+                <button onClick={addProfile} className="rounded-lg bg-accent-500 px-2 py-1 text-xs font-bold text-zinc-900 cursor-pointer">Add</button>
               </span>
             ) : (
               <button onClick={() => setAddingProfile(true)} className="rounded-lg border border-dashed border-zinc-300 px-2 py-1 text-xs text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 dark:border-zinc-700 cursor-pointer">
@@ -492,7 +492,7 @@ export default function App({ session, onSignOut }) {
         {/* heading + stats */}
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-serif text-2xl font-bold">{activeProfile?.name}'s Library</h1>
+            <h1 className="text-2xl font-bold">{activeProfile?.name}'s Library</h1>
             <div className="mt-1 flex gap-4 text-xs text-zinc-400">
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.read}</strong> finished</span>
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.reading}</strong> listening</span>

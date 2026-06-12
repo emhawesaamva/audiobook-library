@@ -93,7 +93,7 @@ export default function SeriesModal({ series, onClose, onSaveSub, onDeleteSub, o
                 </span>
                 <Cover book={b} className="h-12 w-8 shrink-0" rounded="rounded" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-serif text-sm font-semibold">{b.title}{b.loved && <span className="ml-1 text-accent-500">⭐</span>}</div>
+                  <div className="truncate text-sm font-semibold">{b.title}{b.loved && <span className="ml-1 text-accent-500">⭐</span>}</div>
                   <div className="truncate text-xs text-zinc-400">
                     {b.narrator ? `🎙 ${b.narrator}` : b.author}{b.duration_minutes ? ` · ${fmtDuration(b.duration_minutes)}` : ""}{b.year ? ` · ${b.year}` : ""}
                   </div>
