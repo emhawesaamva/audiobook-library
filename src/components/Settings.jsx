@@ -5,8 +5,9 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow, StatusChip } from "./shared.jsx";
 import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
 import { identifyBookList } from "../lib/ai.js";
-import { Upload, Download, ClipboardList } from "lucide-react";
+import { Upload, Download, ClipboardList, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
+import { updateBook } from "../lib/db.js";
 
 const AGE_GROUPS = [
   { value: "adult", label: "Adult" },
@@ -17,7 +18,7 @@ const AGE_GROUPS = [
 export default function Settings({
   profile, profiles, books, session, libbyKey, welcome = false,
   onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks,
-  onLibbyKeyChange, onClose, onSignOut, onToast,
+  onLibbyKeyChange, onRefreshDone, onClose, onSignOut, onToast,
 }) {
   const [name, setName] = useState(profile.name);
   const [confirming, setConfirming] = useState(false);
@@ -25,13 +26,73 @@ export default function Settings({
 
   // Keep the rename field in sync when a different library is selected.
   useEffect(() => { setName(profile.name); setConfirming(false); }, [profile.id, profile.name]);
-  const [importing, setImporting] = useState(null); // {total, done, enrich} during import
+  const [importing, setImporting] = useState(null); // {total, done} during import
+  const [refreshing, setRefreshing] = useState(null); // {total, done, filled} during metadata refresh
+  const refreshAbort = useRef(false);
   const [enrich, setEnrich] = useState(true);
   const [paste, setPaste] = useState(null); // null | {step:"input",text} | {step:"review",items,note}
   const [triage, setTriage] = useState(null); // post-import crowd suggestions
   const [identifying, setIdentifying] = useState(false);
   const fileRef = useRef(null);
   const lastProfile = profiles.length <= 1;
+
+  // Metadata refresh: searches Audible for every book in the library and fills
+  // missing narrator / duration / cover / year / asin / goodreads_rating.
+  // Existing values are never overwritten. Runs fully client-side via the
+  // /api/metadata proxy — no admin credentials needed.
+  const refreshMetadata = async () => {
+    const leafBooks = books.flatMap((b) => (b.is_series ? (b.books ?? []) : [b]));
+    if (!leafBooks.length) { onToast?.({ text: "Library is empty" }); return; }
+    refreshAbort.current = false;
+    setRefreshing({ total: leafBooks.length, done: 0, filled: 0 });
+
+    const norm = (s) =>
+      (s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ")
+        .replace(/^(the|a|an) /, "").replace(/\s+/g, " ").trim();
+    const surname = (a) => norm(a).split(" ").pop() ?? "";
+
+    let filled = 0;
+    for (const book of leafBooks) {
+      if (refreshAbort.current) break;
+      try {
+        const { source, results } = await searchBooks(`${book.title} ${book.author ?? ""}`, 5);
+        if (source === "audible") {
+          const match = results.find((r) => {
+            const bt = norm(book.title), rt = norm(r.title);
+            if (!bt || !rt) return false;
+            const titleOk = bt === rt || rt.startsWith(bt) || bt.startsWith(rt) || rt.includes(bt);
+            if (!titleOk) return false;
+            if (book.author && r.author) {
+              const bs = surname(book.author);
+              return bs.length >= 3 ? norm(r.author).includes(bs) : true;
+            }
+            return true;
+          });
+          if (match) {
+            const meta = resultToBook(match);
+            const patch = {};
+            if (!book.narrator && meta.narrator) patch.narrator = meta.narrator;
+            if (!book.duration_minutes && meta.duration_minutes) patch.duration_minutes = meta.duration_minutes;
+            if (!book.year && meta.year) patch.year = meta.year;
+            if (!book.cover_url && meta.cover_url) patch.cover_url = meta.cover_url;
+            if (!book.asin && meta.asin) patch.asin = meta.asin;
+            if (!book.goodreads_rating && meta.goodreads_rating) patch.goodreads_rating = meta.goodreads_rating;
+            if (Object.keys(patch).length) {
+              await updateBook(book.id, patch);
+              filled++;
+            }
+          }
+        }
+      } catch { /* skip this book */ }
+      await new Promise((r) => setTimeout(r, 180));
+      setRefreshing((p) => p ? { ...p, done: p.done + 1, filled } : null);
+    }
+
+    const wasCancelled = refreshAbort.current;
+    setRefreshing(null);
+    onToast?.({ text: wasCancelled ? `Refresh stopped — ${filled} books updated` : `Refresh complete — ${filled} books updated` });
+    if (filled > 0) onRefreshDone?.();
+  };
 
   // Shared import pipeline: dedupe against the library, enrich each book with
   // Audible metadata (covers/narrator/runtime/genre/series), then hand off to
@@ -239,6 +300,41 @@ export default function Settings({
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               Accepts a Goodreads library export (CSV) or a Libby timeline export (CSV or JSON) — the format is detected
               automatically. Imports are additive, duplicates are skipped, and books from the same series are grouped together.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* ---- metadata refresh ---- */}
+      <div className={section}>
+        <div className={labelCls}>Refresh metadata</div>
+        {refreshing ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
+              <Spinner />
+              <div className="flex-1">
+                <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span>Checking book {refreshing.done} of {refreshing.total}…</span>
+                  <span>{refreshing.filled} updated</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                  <div className="h-full bg-accent-500 transition-all" style={{ width: `${(refreshing.done / refreshing.total) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+            <button onClick={() => { refreshAbort.current = true; }} className={`${btnSecondary} w-full text-xs`}>
+              Stop
+            </button>
+          </div>
+        ) : (
+          <>
+            <button onClick={refreshMetadata} className={btnSecondary}>
+              <RefreshCw className="h-4 w-4" /> Refresh this library
+            </button>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Searches Audible for every book in <strong>{profile.name}</strong> and fills in any missing covers,
+              narrators, durations, publication years, and public crowd ratings. Existing values are never overwritten.
+              Takes about {Math.ceil(books.flatMap(b => b.is_series ? (b.books ?? []) : [b]).length * 0.2 / 60)} min for this library.
             </p>
           </>
         )}
