@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { flattenBooks, fmtDuration } from "../lib/bookUtils.js";
 import { inputCls, labelCls } from "./shared.jsx";
-import { Ruler, Repeat, Ban, Users, Flame, Gem, UserRound } from "lucide-react";
+import { Ruler, Repeat, Ban, Users, Flame, Gem, UserRound, RefreshCw } from "lucide-react";
 
 function StatCard({ value, label, sub }) {
   return (
@@ -233,6 +233,20 @@ export default function Stats({ books, goals, onSetGoal }) {
           {!stats.longest && <p className="text-zinc-500 dark:text-zinc-400">Add durations to books (autofill does this) to unlock listening-time stats.</p>}
         </div>
       </div>
+
+      {/* crowd features prompt when public ratings haven't been loaded yet */}
+      {stats.crowd === null && stats.finishedEver >= 3 && (
+        <div className="flex items-start gap-3 rounded-xl border border-zinc-300/90 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+          <div>
+            <p className="font-medium">Crowd comparisons aren't unlocked yet</p>
+            <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">
+              Open <strong>Settings → Refresh metadata</strong> to pull public Audible ratings for your library.
+              Once loaded, you'll see how your taste stacks up against the crowd, your hidden gems, and your most contrarian takes.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* hidden gems + contrarian authors */}
       {(stats.gems.length > 0 || stats.contrarians.length > 0) && (
