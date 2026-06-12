@@ -56,7 +56,7 @@ function GoalRing({ label, current, target, unit }) {
   );
 }
 
-export default function Stats({ books, goals, onSetGoal }) {
+export default function Stats({ books, goals, onSetGoal, readOnly = false }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
 
@@ -162,14 +162,16 @@ export default function Stats({ books, goals, onSetGoal }) {
       </div>
 
       {/* goals */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {bookGoal
-          ? <GoalRing label={`${year} book goal`} current={stats.finishedThisYear} target={bookGoal.target} unit="books" />
-          : <GoalSetter label="books" year={year} onSet={(t) => onSetGoal(year, "books", t)} />}
-        {hourGoal
-          ? <GoalRing label={`${year} listening goal`} current={Math.round(stats.minutesYear / 60)} target={hourGoal.target} unit="hours" />
-          : <GoalSetter label="hours" year={year} onSet={(t) => onSetGoal(year, "hours", t)} />}
-      </div>
+      {(bookGoal || hourGoal || !readOnly) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {bookGoal
+            ? <GoalRing label={`${year} book goal`} current={stats.finishedThisYear} target={bookGoal.target} unit="books" />
+            : (!readOnly && <GoalSetter label="books" year={year} onSet={(t) => onSetGoal(year, "books", t)} />)}
+          {hourGoal
+            ? <GoalRing label={`${year} listening goal`} current={Math.round(stats.minutesYear / 60)} target={hourGoal.target} unit="hours" />
+            : (!readOnly && <GoalSetter label="hours" year={year} onSet={(t) => onSetGoal(year, "hours", t)} />)}
+        </div>
+      )}
 
       {/* headline stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
