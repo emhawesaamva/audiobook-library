@@ -3,7 +3,7 @@
 // which library the panel configures (it also switches the active library).
 import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
-import { parseGoodreadsCSV, booksToCSV, download } from "../lib/csv.js";
+import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
 import { Upload, Download } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
 
@@ -32,15 +32,26 @@ export default function Settings({
     e.target.value = "";
     if (!file) return;
     const text = await file.text();
-    const { books: parsed, errors } = parseGoodreadsCSV(text);
+
+    const format = detectImportFormat(text, file.name.toLowerCase());
+    const parsedResult =
+      format === "goodreads" ? parseGoodreadsCSV(text)
+      : format === "libby" ? parseLibbyCSV(text)
+      : format === "libby-json" ? parseLibbyJSON(text)
+      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV or a Libby timeline export (CSV or JSON)"] };
+    const { books: parsed, errors, note } = parsedResult;
     if (!parsed.length) {
       onToast?.({ text: errors[0] ?? "No books found in file", isError: true });
       return;
     }
-    const existing = new Set(books.map((b) => b.title.toLowerCase()));
+    const sourceLabel = format === "goodreads" ? "Goodreads" : "Libby";
+
+    const existing = new Set(
+      books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).map((b) => b.title.toLowerCase())
+    );
     const fresh = parsed.filter((b) => !existing.has(b.title.toLowerCase()));
     if (!fresh.length) {
-      onToast?.({ text: "All books in the file are already in this library" });
+      onToast?.({ text: `All ${sourceLabel} books are already in this library` });
       return;
     }
 
@@ -48,27 +59,38 @@ export default function Settings({
     const toCreate = [];
     for (const b of fresh) {
       let enriched = {};
+      let series = null;
       if (enrich) {
         try {
-          const { results } = await searchBooks(`${b.title} ${b.author ?? ""}`, 2);
-          if (results[0]) {
-            const meta = resultToBook(results[0]);
+          const { results } = await searchBooks(`${b.title} ${b.author ?? ""}`, 3);
+          const probe = b.title.toLowerCase().slice(0, 15);
+          const hit = results.find((r) => r.title?.toLowerCase().includes(probe)) ?? results[0];
+          if (hit) {
+            const meta = resultToBook(hit);
             enriched = {
               narrator: meta.narrator || null,
               duration_minutes: meta.duration_minutes,
               cover_url: meta.cover_url,
               asin: meta.asin,
               year: b.year ?? meta.year,
+              ...(meta.genre ? { genre: meta.genre } : {}),
+              ...(meta.subgenre ? { subgenre: meta.subgenre } : {}),
             };
+            if (hit.series?.asin) series = hit.series; // {asin, title, position}
           }
         } catch { /* enrichment is best-effort */ }
       }
-      toCreate.push({ ...b, ...enriched, genre: b.genre ?? "Other" });
+      toCreate.push({ ...b, ...enriched, genre: b.genre ?? enriched.genre ?? "Other", _series: series });
       setImporting((p) => ({ ...p, done: p.done + 1 }));
     }
     try {
-      await onImportBooks(toCreate);
-      onToast?.({ text: `Imported ${toCreate.length} books${errors.length ? ` (${errors.length} rows skipped)` : ""}` });
+      const { seriesCount } = await onImportBooks(toCreate);
+      onToast?.({
+        text: `Imported ${toCreate.length} books from ${sourceLabel}` +
+          (seriesCount ? `, organized ${seriesCount} series` : "") +
+          (note ? ` (${note})` : "") +
+          (errors.length ? ` (${errors.length} rows skipped)` : ""),
+      });
     } catch (err) {
       onToast?.({ text: `Import failed: ${err.message}`, isError: true });
     }
@@ -142,16 +164,19 @@ export default function Settings({
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => fileRef.current?.click()} className={btnSecondary}><Upload className="h-4 w-4" /> Import Goodreads CSV</button>
+              <button onClick={() => fileRef.current?.click()} className={btnSecondary}><Upload className="h-4 w-4" /> Import (Goodreads / Libby)</button>
               <button onClick={() => download(`${profile.name}-library.csv`, booksToCSV(books), "text/csv")} className={btnSecondary}><Download className="h-4 w-4" /> Export CSV</button>
               <button onClick={() => download(`${profile.name}-library.json`, JSON.stringify(books, null, 2), "application/json")} className={btnSecondary}><Download className="h-4 w-4" /> Export JSON</button>
-              <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
+              <input ref={fileRef} type="file" accept=".csv,.json" onChange={handleImport} className="hidden" />
             </div>
             <label className="mt-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
               <input type="checkbox" checked={enrich} onChange={(e) => setEnrich(e.target.checked)} className="accent-accent-500" />
               Enrich imports with covers, narrators & durations (slower)
             </label>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Import is additive — books already in this library are skipped.</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Accepts a Goodreads library export (CSV) or a Libby timeline export (CSV or JSON) — the format is detected
+              automatically. Imports are additive, duplicates are skipped, and books from the same series are grouped together.
+            </p>
           </>
         )}
       </div>

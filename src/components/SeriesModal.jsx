@@ -7,7 +7,7 @@ import { calcSeriesRating, fmtDuration } from "../lib/bookUtils.js";
 import { Pencil, Trash2, Heart } from "lucide-react";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
 
-export default function SeriesModal({ series, onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
+export default function SeriesModal({ series, recommenders = [], onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
@@ -125,6 +125,7 @@ export default function SeriesModal({ series, onClose, onSaveSub, onDeleteSub, o
       {subForm && (
         <BookForm
           book={subForm.id ? subForm : { author: series.author, genre: series.genre, subgenre: series.subgenre, status: "read" }}
+          recommenders={recommenders}
           isSub
           onSave={async (fields) => { await onSaveSub(subForm.id ?? null, fields); setSubForm(null); }}
           onClose={() => setSubForm(null)}

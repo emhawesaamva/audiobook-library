@@ -247,6 +247,49 @@ export default function App({ session, onSignOut }) {
     await refreshBooks();
   };
 
+  // Bulk import with automatic series grouping: rows may carry a transient
+  // `_series` ({asin, title, position}) from metadata enrichment. Imported
+  // books join an existing series header when titles match, or form a new
+  // series when two or more of them share one. Returns { seriesCount }.
+  const importBooks = async (rows) => {
+    const normTitle = (s) =>
+      (s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ")
+        .replace(/\b(the|a|an|series|saga|trilogy)\b/g, " ").replace(/\s+/g, " ").trim();
+
+    const created = await db.createBooks(
+      rows.map(({ _series, ...r }) => ({ ...r, profile_id: activeId }))
+    );
+
+    const groups = new Map(); // seriesAsin -> { title, members: [{id, position}] }
+    rows.forEach((r, i) => {
+      if (!r._series?.asin || !created[i]) return;
+      if (!groups.has(r._series.asin)) groups.set(r._series.asin, { title: r._series.title, members: [] });
+      groups.get(r._series.asin).members.push({ row: created[i], position: r._series.position ?? null });
+    });
+
+    let seriesCount = 0;
+    for (const group of groups.values()) {
+      const existing = books.find((b) => b.is_series && normTitle(b.title) === normTitle(group.title));
+      if (!existing && group.members.length < 2) continue; // no one-book series
+      let headerId = existing?.id;
+      if (!headerId) {
+        const first = group.members[0].row;
+        const header = await db.createBook({
+          profile_id: activeId, is_series: true, title: group.title,
+          author: first.author, genre: first.genre, subgenre: first.subgenre,
+          cover_url: group.members.find((m) => m.row.cover_url)?.row.cover_url ?? null,
+        });
+        headerId = header.id;
+      }
+      for (const m of group.members) {
+        await db.updateBook(m.row.id, { parent_id: headerId, series_position: m.position });
+      }
+      seriesCount++;
+    }
+    await refreshBooks();
+    return { seriesCount };
+  };
+
   const saveSeries = async (header, volumes) => {
     const parent = await db.createBook({ ...header, profile_id: activeId, is_series: true });
     if (volumes.length) {
@@ -316,6 +359,12 @@ export default function App({ session, onSignOut }) {
   // ---- filtering & sorting ----
   const genres = useMemo(
     () => ["all", ...new Set(books.map((b) => b.genre).filter(Boolean))].sort((a, b) => (a === "all" ? -1 : a.localeCompare(b))),
+    [books]
+  );
+
+  // Distinct "recommended by" values across the library, for form typeahead.
+  const recommenders = useMemo(
+    () => [...new Set([...books, ...flattenBooks(books)].map((b) => b.recommended_by).filter(Boolean))].sort(),
     [books]
   );
 
@@ -637,6 +686,7 @@ export default function App({ session, onSignOut }) {
       {form && (
         <BookForm
           book={form.book}
+          recommenders={recommenders}
           seriesList={books.filter((b) => b.is_series)}
           onSave={saveBook}
           onSaveSeries={saveSeries}
@@ -648,6 +698,7 @@ export default function App({ session, onSignOut }) {
       {activeSeries && (
         <SeriesModal
           series={activeSeries}
+          recommenders={recommenders}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
           onSaveSub={async (id, fields) => {
@@ -684,10 +735,7 @@ export default function App({ session, onSignOut }) {
             setProfiles(profiles.map((x) => (x.id === activeId ? p : x)));
           }}
           onDeleteProfile={deleteActiveProfile}
-          onImportBooks={async (rows) => {
-            await db.createBooks(rows.map((r) => ({ ...r, profile_id: activeId })));
-            await refreshBooks();
-          }}
+          onImportBooks={importBooks}
           onClose={() => setSettingsOpen(false)}
           onSignOut={onSignOut}
           onToast={setToast}
