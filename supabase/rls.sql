@@ -18,11 +18,12 @@ create policy accounts_select on public.accounts for select to authenticated
   using (id = (select auth.uid()) or public.is_admin());
 create policy accounts_update on public.accounts for update to authenticated
   using (id = (select auth.uid()))
-  with check (id = (select auth.uid())
-              and is_admin = (select a.is_admin from public.accounts a where a.id = (select auth.uid())));
-  -- WITH CHECK pins is_admin to its current value: users cannot self-promote.
-create policy accounts_admin_update on public.accounts for update to authenticated
-  using (public.is_admin()) with check (public.is_admin());
+  with check (id = (select auth.uid()));
+-- Self-promotion is prevented by column privileges, not policy (a WITH CHECK
+-- subselect on accounts recurses into its own policies): authenticated users
+-- may only update display_name. is_admin changes require the service role.
+revoke update on public.accounts from authenticated, anon;
+grant update (display_name) on public.accounts to authenticated;
 -- No insert/delete policies: rows are created by the signup trigger and removed
 -- by the auth.users cascade.
 

@@ -10,6 +10,7 @@ export default function SeriesModal({ series, onClose, onSaveSub, onDeleteSub, o
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
+  const [deleting, setDeleting] = useState(null); // sub-book id pending confirm
   const subBooks = series.books ?? [];
   const rating = calcSeriesRating(series);
 
@@ -97,11 +98,23 @@ export default function SeriesModal({ series, onClose, onSaveSub, onDeleteSub, o
                     {b.narrator ? `🎙 ${b.narrator}` : b.author}{b.duration_minutes ? ` · ${fmtDuration(b.duration_minutes)}` : ""}{b.year ? ` · ${b.year}` : ""}
                   </div>
                 </div>
-                {Number(b.rating) > 0 && <Stars rating={b.rating} size="text-xs" />}
-                <StatusChip status={b.status} />
-                <button onClick={() => setSubForm(b)} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" aria-label="Edit">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </button>
+                {deleting === b.id ? (
+                  <span className="flex items-center gap-1.5">
+                    <button onClick={async () => { setDeleting(null); await onDeleteSub(b.id); onToast?.({ text: `Deleted "${b.title}"` }); }} className="rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white cursor-pointer">DELETE</button>
+                    <button onClick={() => setDeleting(null)} className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 cursor-pointer">Cancel</button>
+                  </span>
+                ) : (
+                  <>
+                    {Number(b.rating) > 0 && <Stars rating={b.rating} size="text-xs" />}
+                    <StatusChip status={b.status} />
+                    <button onClick={() => setSubForm(b)} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" aria-label="Edit">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    </button>
+                    <button onClick={() => setDeleting(b.id)} className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 cursor-pointer" aria-label="Delete">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
