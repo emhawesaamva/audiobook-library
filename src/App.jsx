@@ -91,7 +91,7 @@ export default function App({ session, onSignOut }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
-  const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "dark");
+  const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "light");
   const [toast, setToastRaw] = useState(null);
   const [banner, setBanner] = useState(null);      // persistent status / error line
 
@@ -575,7 +575,20 @@ export default function App({ session, onSignOut }) {
               <div className="flex justify-center py-16"><Spinner className="h-6 w-6 text-zinc-300" /></div>
             ) : shown.length === 0 ? (
               <div className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                {books.length === 0 ? <>Your library is empty — hit <strong>+ Add</strong> to get started.</> : "Nothing matches the current filters."}
+                {books.length === 0 ? (
+                  <>Your library is empty — hit <strong>+ Add</strong> to get started.</>
+                ) : search ? (
+                  <>No results for “{search}” — try a different search.</>
+                ) : (
+                  {
+                    recommended: "Recommended books appear here — the librarian adds fresh picks automatically, and the Recommend tab finds more on demand.",
+                    loved: "Books you mark with a ❤ after finishing them appear here — your all-time favorites shelf.",
+                    read: "Books you've finished appear here. Set a book's status to Read (and give it a rating) to build your history.",
+                    reading: "Whatever you're listening to right now appears here — set a book to Listening, or press play on your Up Next queue.",
+                    want: "Your listening wishlist appears here — mark books as Want to Listen, or add picks from the Recommend tab.",
+                    dnf: "Books you set aside without finishing appear here, along with how far you got and why.",
+                  }[filter] ?? "No books match the genre or rating filters — try widening them."
+                )}
               </div>
             ) : view === "covers" ? (
               <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
