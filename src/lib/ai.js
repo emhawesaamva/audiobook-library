@@ -76,6 +76,36 @@ Return JSON only, no markdown:
   return { recommendations: recs, note: parsed.note ?? "" };
 }
 
+// Turn arbitrary pasted text (notes-app lists, numbered lists, random junk)
+// into a structured book list for the paste importer.
+export async function identifyBookList(text) {
+  const d = await claudeFetch({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4000,
+    system: `You convert messy pasted text into a structured list of books. The text may have numbering, bullets, emoji, dates, page numbers, half-remembered titles, or commentary mixed in. Extract every book you can identify.
+
+Return JSON only, no markdown:
+{"books":[{"title":"","author":null,"status":null}],"note":""}
+
+Rules:
+- title: the book's proper title with correct capitalization; fix obvious typos.
+- author: the author if stated or if you are confident who wrote that well-known book; otherwise null. Never guess obscure attributions.
+- status: ONLY when the text clearly signals it — "read"/"finished" -> "read", "reading"/"currently" -> "reading", "want"/"to read"/"tbr" -> "wanttoread". Otherwise null.
+- Skip lines that are clearly not books; if you skip things or are unsure about an entry, say so briefly in note.
+- Never invent books that are not in the text.`,
+    messages: [{ role: "user", content: text.slice(0, 10000) }],
+  });
+  if (d.error) throw new Error(d.error.message);
+  const allText = (d.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const json = extractJSON(allText);
+  if (!json) throw new Error("Couldn't make sense of that list");
+  const parsed = JSON.parse(json);
+  return {
+    books: (parsed.books ?? []).filter((b) => b.title?.trim()),
+    note: parsed.note ?? "",
+  };
+}
+
 // Quick identification of a book from a free-text description (Add form).
 export async function identifyBook(query, profileName) {
   const d = await claudeFetch({
