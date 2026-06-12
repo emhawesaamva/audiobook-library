@@ -14,11 +14,13 @@ const AGE_GROUPS = [
 ];
 
 export default function Settings({
-  profile, profiles, books, session,
-  onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks, onClose, onSignOut, onToast,
+  profile, profiles, books, session, libbyKey,
+  onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks,
+  onLibbyKeyChange, onClose, onSignOut, onToast,
 }) {
   const [name, setName] = useState(profile.name);
   const [confirming, setConfirming] = useState(false);
+  const [libby, setLibby] = useState(libbyKey ?? "");
 
   // Keep the rename field in sync when a different library is selected.
   useEffect(() => { setName(profile.name); setConfirming(false); }, [profile.id, profile.name]);
@@ -194,6 +196,30 @@ export default function Settings({
             Delete the library “{profile.name}”{lastProfile ? " (create another first)" : ""}
           </button>
         )}
+      </div>
+
+      {/* ---- Libby ---- */}
+      <div className={section}>
+        <div className={labelCls}>Libby library code <span className="normal-case font-normal">(applies to your whole account)</span></div>
+        <div className="flex gap-2">
+          <input
+            value={libby}
+            onChange={(e) => setLibby(e.target.value.trim().toLowerCase())}
+            placeholder="e.g. lapl"
+            className={inputCls}
+          />
+          <button
+            onClick={() => { onLibbyKeyChange(libby || null); onToast?.({ text: libby ? "Libby library saved" : "Libby library cleared" }); }}
+            disabled={(libbyKey ?? "") === libby}
+            className={btnSecondary}
+          >
+            Save
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          The slug from your library's Libby URL (libbyapp.com/library/<strong>code</strong>). With it set, every book's
+          “Libby” action searches your library directly; without it, the universal OverDrive search is used.
+        </p>
       </div>
 
       {/* ---- account ---- */}

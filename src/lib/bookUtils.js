@@ -75,6 +75,16 @@ export function audibleSearchUrl(book) {
   return `https://www.audible.com/search?keywords=${q}`;
 }
 
+// Libby search deep link. With a library code (the slug from the user's
+// libbyapp.com URL, e.g. "lapl") it searches their library directly;
+// otherwise it falls back to OverDrive's universal catalog search.
+export function libbySearchUrl(book, libraryKey) {
+  const q = encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim());
+  return libraryKey
+    ? `https://libbyapp.com/search/${encodeURIComponent(libraryKey)}/search/scope-auto/query-${q}/page-1`
+    : `https://www.overdrive.com/search?q=${q}`;
+}
+
 export function goodreadsSearchUrl(book) {
   return book.goodreads_url ||
     `https://www.goodreads.com/search?q=${encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim())}`;
