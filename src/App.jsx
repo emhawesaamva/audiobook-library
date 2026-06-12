@@ -119,7 +119,7 @@ export default function App({ session, onSignOut }) {
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "light");
-  const [size, setSize] = useState(localStorage.getItem("lib_size") ?? "compact");
+  const [size, setSize] = useState(localStorage.getItem("lib_size") ?? "large");
   const [prefs, setPrefs] = useState({}); // user_settings.settings jsonb (view, libby_key, size, …)
 
   const savePrefs = (patch) => {
@@ -160,7 +160,7 @@ export default function App({ session, onSignOut }) {
       try {
         const [acct, profs, settings, app] = await Promise.all([
           db.getAccount(uid),
-          db.listProfiles(),
+          db.listProfiles(uid),
           db.getUserSettings(uid),
           db.getAppSettings(),
         ]);
@@ -573,10 +573,10 @@ export default function App({ session, onSignOut }) {
               <button
                 key={p.id}
                 onClick={() => p.id !== activeId && selectProfile(p.id)}
-                className={`-mb-2.5 rounded-t-lg border border-b-0 px-3 pt-1.5 pb-4 text-sm font-medium transition cursor-pointer ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
                   p.id === activeId
-                    ? "border-accent-500 bg-accent-500 text-zinc-900"
-                    : "border-zinc-300/90 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    ? "bg-accent-500 text-zinc-900"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 {p.name}
@@ -739,6 +739,7 @@ export default function App({ session, onSignOut }) {
                     reading: "Whatever you're listening to right now appears here — set a book to Listening, or press play on your Up Next queue.",
                     want: "Your listening wishlist appears here — mark books as Want to Listen, or add picks from the Recommend tab.",
                     dnf: "Books you set aside without finishing appear here, along with how far you got and why.",
+                    crowd: "No books in your library have crowd ratings of 4.5★ or higher yet. Books added via the search autofill include public ratings automatically — or run the metadata refresh script to backfill your existing library.",
                   }[filter] ?? "No books match the genre or rating filters — try widening them."
                 )}
               </div>

@@ -8,12 +8,12 @@ function throwOn(error) {
 
 // ---- profiles ----
 
-export async function listProfiles() {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("sort_order")
-    .order("created_at");
+export async function listProfiles(accountId) {
+  // Always scope to the calling user — admins see all rows via RLS but should
+  // only see their own libraries in the switcher.
+  let q = supabase.from("profiles").select("*").order("sort_order").order("created_at");
+  if (accountId) q = q.eq("account_id", accountId);
+  const { data, error } = await q;
   throwOn(error);
   return data;
 }

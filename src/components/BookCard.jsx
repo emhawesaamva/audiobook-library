@@ -74,8 +74,7 @@ function MenuButton({ open, setOpen }) {
 }
 
 function LovedCorner() {
-  // Pokes 2px past the card's rounded corner so the fold forms a sharp 90°.
-  return <div className="pointer-events-none absolute -right-0.5 -top-0.5 h-0 w-0" style={{ borderWidth: "0 20px 20px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
+  return <div className="pointer-events-none absolute right-0 top-0 h-0 w-0" style={{ borderWidth: "0 22px 22px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
 }
 
 function seriesMeta(book) {
@@ -89,40 +88,45 @@ export function BookCardGrid({ book, libbyKey, onEdit, onDelete, onOpen, onQueue
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
   return (
+    // Outer: click + group context, no overflow-hidden so the dropdown can escape.
     <div
       onClick={book.is_series && onOpen ? onOpen : onEdit}
-      className="group relative cursor-pointer rounded-xl border border-zinc-300/90 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+      className="group relative cursor-pointer rounded-xl shadow-sm transition hover:shadow-md"
     >
-      {book.loved && <LovedCorner />}
-      <div className="flex gap-3">
-        <Cover book={book} className="h-24 w-16 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold leading-snug">
-            {book.title}
-            {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series ›</span>}
-          </div>
-          <div className="truncate text-sm text-zinc-600 dark:text-zinc-400">{book.author}</div>
-          {book.narrator && (
-            <div className="flex items-center gap-1 truncate text-xs text-zinc-500 dark:text-zinc-400"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{book.narrator}</span></div>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <StatusChip status={status} />
-            {rating > 0 && <Stars rating={rating} size="text-sm" />}
-            {book.is_series
-              ? <span className="text-xs text-zinc-500 dark:text-zinc-400">{seriesMeta(book)}</span>
-              : book.duration_minutes && <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
-          </div>
-          {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
-          {book.status === "wanttoread" && Number(book.goodreads_rating) > 0 && Number(book.goodreads_rating) < 3.8 && (
-            <div className="mt-1 text-xs text-amber-700/80 dark:text-amber-500/80">
-              the crowd is lukewarm on this one · {Number(book.goodreads_rating)}★
+      {/* Inner: overflow-hidden clips the loved corner fold to the rounded edge. */}
+      <div className="relative overflow-hidden rounded-xl border border-zinc-300/90 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        {book.loved && <LovedCorner />}
+        <div className="flex gap-3">
+          <Cover book={book} className="h-24 w-16 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold leading-snug">
+              {book.title}
+              {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series ›</span>}
             </div>
-          )}
+            <div className="truncate text-sm text-zinc-600 dark:text-zinc-400">{book.author}</div>
+            {book.narrator && (
+              <div className="flex items-center gap-1 truncate text-xs text-zinc-500 dark:text-zinc-400"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{book.narrator}</span></div>
+            )}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <StatusChip status={status} />
+              {rating > 0 && <Stars rating={rating} size="text-sm" />}
+              {book.is_series
+                ? <span className="text-xs text-zinc-500 dark:text-zinc-400">{seriesMeta(book)}</span>
+                : book.duration_minutes && <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
+            </div>
+            {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
+            {book.status === "wanttoread" && Number(book.goodreads_rating) > 0 && Number(book.goodreads_rating) < 3.8 && (
+              <div className="mt-1 text-xs text-amber-700/80 dark:text-amber-500/80">
+                the crowd is lukewarm on this one · {Number(book.goodreads_rating)}★
+              </div>
+            )}
+          </div>
         </div>
-        <div className="relative shrink-0">
-          <MenuButton open={menu} setOpen={setMenu} />
-          {menu && <ActionMenu book={book} libbyKey={libbyKey} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onClose={() => setMenu(false)} />}
-        </div>
+      </div>
+      {/* Menu button outside overflow-hidden so the dropdown can overflow the card. */}
+      <div className="absolute right-1 top-1 z-20" onClick={(e) => e.stopPropagation()}>
+        <MenuButton open={menu} setOpen={setMenu} />
+        {menu && <ActionMenu book={book} libbyKey={libbyKey} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onClose={() => setMenu(false)} />}
       </div>
     </div>
   );
