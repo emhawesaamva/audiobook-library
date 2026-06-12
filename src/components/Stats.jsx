@@ -263,7 +263,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 <Gem className="h-3.5 w-3.5" /> {possessive} hidden gems
               </div>
-              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{vsSubject} loved these well beyond the crowd — {poss} best personal recommendations.</p>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{possessive === "My" ? "I" : "You"} loved these well beyond the crowd — {poss} best personal recommendations.</p>
               <div className="space-y-1.5 text-sm">
                 {stats.gems.map((b) => (
                   <div key={b.id} className="flex items-baseline justify-between gap-2">
