@@ -62,7 +62,8 @@ const FILTERS = [
 ];
 
 function applyFilter(books, filter, sort) {
-  let list = [...books];
+  // Always hide recommended books on the public shared view.
+  let list = books.filter((b) => getStatus(b) !== "recommended");
   if (filter === "loved") {
     list = list.filter((b) => b.loved || b.books?.some((c) => c.loved));
   } else if (filter === "crowd") {
@@ -133,7 +134,7 @@ function SeriesViewModal({ series, onClose, onAdd }) {
         </button>
         <h2 className="mb-4 text-lg font-semibold">{series.title}</h2>
         <div className="max-h-96 space-y-1 overflow-y-auto">
-          {(series.books ?? []).map((book) => (
+          {(series.books ?? []).filter((b) => b.status !== "recommended").map((book) => (
             <div key={book.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800">
               <Cover book={book} className="h-10 w-7 shrink-0" rounded="rounded" />
               <div className="min-w-0 flex-1">
