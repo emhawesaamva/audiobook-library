@@ -89,6 +89,7 @@ export default function App({ session, onSignOut }) {
   const [form, setForm] = useState(null);          // {book} | null
   const [seriesOpen, setSeriesOpen] = useState(null); // series id | null
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [onboarding, setOnboarding] = useState(false); // welcome framing in settings after creating a library
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "light");
@@ -352,6 +353,8 @@ export default function App({ session, onSignOut }) {
       setAddingProfile(false);
       setNewProfileName("");
       selectProfile(p.id);
+      setOnboarding(true);
+      setSettingsOpen(true);
     } catch (e) {
       setToast({ text: e.message.includes("duplicate") ? "A library with that name exists" : e.message, isError: true });
     }
@@ -481,6 +484,8 @@ export default function App({ session, onSignOut }) {
             const p = await db.createProfile(name);
             setProfiles([p]);
             selectProfile(p.id);
+            setOnboarding(true);
+            setSettingsOpen(true);
           } catch (e) {
             setToast({ text: e.message, isError: true });
             setBusy(false);
@@ -683,6 +688,7 @@ export default function App({ session, onSignOut }) {
             profileName={activeProfile.name}
             ageGroup={activeProfile.age_group}
             model={appSettings.default_model}
+            libbyKey={prefs.libby_key}
             onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); }}
             onToast={setToast}
           />
@@ -749,7 +755,8 @@ export default function App({ session, onSignOut }) {
           onImportBooks={importBooks}
           libbyKey={prefs.libby_key ?? ""}
           onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
-          onClose={() => setSettingsOpen(false)}
+          welcome={onboarding}
+          onClose={() => { setSettingsOpen(false); setOnboarding(false); }}
           onSignOut={onSignOut}
           onToast={setToast}
         />

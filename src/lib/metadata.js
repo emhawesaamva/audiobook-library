@@ -7,6 +7,14 @@ export async function searchBooks(q, limit = 8) {
   return r.json();
 }
 
+export async function libbyAvailability(libraryKey, title, author) {
+  const r = await fetch(
+    `/api/metadata?libby=${encodeURIComponent(libraryKey)}&q=${encodeURIComponent(title)}&author=${encodeURIComponent(author ?? "")}`
+  );
+  if (!r.ok) throw new Error("Availability check failed");
+  return r.json();
+}
+
 export async function seriesVolumes(seriesAsin) {
   const r = await fetch(`/api/metadata?series=${encodeURIComponent(seriesAsin)}`);
   if (!r.ok) throw new Error("Series lookup failed");

@@ -1,17 +1,47 @@
 // AI recommendation tab: free-text search against Claude, grounded in the
 // profile's loved books/authors/genres. Accepted picks are enriched with
-// real metadata (cover, narrator, duration) before saving.
-import { useState } from "react";
+// real metadata (cover, narrator, duration) before saving. With a Libby
+// library code configured, each pick also shows live library availability.
+import { useState, useEffect } from "react";
 import { Spinner, btnPrimary, btnSecondary, inputCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
-import { searchBooks, resultToBook } from "../lib/metadata.js";
-import { flattenBooks } from "../lib/bookUtils.js";
+import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
+import { flattenBooks, libbySearchUrl } from "../lib/bookUtils.js";
 
-export default function Recommend({ books, profileName, ageGroup, model, onAdd, onToast }) {
+function LibbyBadge({ status, book, libbyKey }) {
+  if (!status) return null;
+  const base = "shrink-0 rounded-md px-2 py-1 text-xs font-bold";
+  const href = libbySearchUrl(book, libbyKey);
+  if (!status.owned)
+    return <span className={`${base} bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500`}>NOT ON LIBBY</span>;
+  if (status.available)
+    return <a href={href} target="_blank" rel="noopener noreferrer" className={`${base} bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900`}>LIBBY ✓ AVAILABLE</a>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={`${base} bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900`}>
+      LIBBY · {status.waitDays != null ? `~${status.waitDays}d wait` : `${status.holds} holds`}
+    </a>
+  );
+}
+
+export default function Recommend({ books, profileName, ageGroup, model, libbyKey, onAdd, onToast }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
   const [added, setAdded] = useState({});
+  const [libbyStatus, setLibbyStatus] = useState({});
+
+  // Best-effort availability check at the user's library for each pick.
+  useEffect(() => {
+    if (!libbyKey || !res?.recommendations?.length) return;
+    let cancelled = false;
+    setLibbyStatus({});
+    for (const r of res.recommendations) {
+      libbyAvailability(libbyKey, r.title, r.author)
+        .then((status) => !cancelled && setLibbyStatus((m) => ({ ...m, [r.title]: status })))
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [libbyKey, res]);
   const existingTitles = new Set(
     [...books, ...flattenBooks(books)].map((b) => b.title.toLowerCase())
   );
@@ -89,13 +119,16 @@ export default function Recommend({ books, profileName, ageGroup, model, onAdd, 
               <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400">{r.author}</span>
               {r.year && <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">{r.year}</span>}
             </div>
-            <a
-              href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
-              target="_blank" rel="noopener noreferrer"
-              className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
-            >
-              AUDIBLE ↗
-            </a>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <LibbyBadge status={libbyStatus[r.title]} book={r} libbyKey={libbyKey} />
+              <a
+                href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
+                target="_blank" rel="noopener noreferrer"
+                className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
+              >
+                AUDIBLE ↗
+              </a>
+            </div>
           </div>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{r.why}</p>
           <div className="mt-2.5 flex items-center justify-between">

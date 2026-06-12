@@ -165,14 +165,39 @@ export async function seriesVolumes(seriesAsin) {
   return { series: seriesTitle || fallbackTitle, volumes };
 }
 
+// Audiobook availability at a Libby/OverDrive library, via the same public
+// "Thunder" API the libbyapp.com front-end uses. Keyless; best-effort.
+export async function libbyAvailability(libraryKey, title, author) {
+  const q = encodeURIComponent(`${title} ${author ?? ""}`.trim());
+  const data = await jget(
+    `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(libraryKey)}/media?query=${q}&format=audiobook-overdrive,audiobook-mp3&perPage=10`
+  );
+  const norm = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const target = norm(title);
+  const hit = (data.items ?? []).find((i) => {
+    const t = norm(i.title);
+    return t === target || t.startsWith(target) || target.startsWith(t);
+  });
+  if (!hit || !hit.isOwned) return { owned: false };
+  return {
+    owned: true,
+    available: !!hit.isAvailable,
+    waitDays: hit.estimatedWaitDays ?? null,
+    holds: hit.holdsCount ?? 0,
+    copies: hit.ownedCopies ?? 0,
+  };
+}
+
 // Connect/Vercel-compatible request handler.
 export async function handleMetadataRequest(req, res) {
   try {
     const url = new URL(req.url, "http://x");
     const q = url.searchParams.get("q");
     const series = url.searchParams.get("series");
+    const libby = url.searchParams.get("libby");
     let payload;
-    if (series) payload = await seriesVolumes(series);
+    if (libby && q) payload = await libbyAvailability(libby, q, url.searchParams.get("author"));
+    else if (series) payload = await seriesVolumes(series);
     else if (q) payload = await searchBooks(q, Number(url.searchParams.get("limit")) || 8);
     else { res.statusCode = 400; res.end(JSON.stringify({ error: "q or series required" })); return; }
     res.setHeader("Content-Type", "application/json");
