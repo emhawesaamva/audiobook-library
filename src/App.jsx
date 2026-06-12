@@ -167,7 +167,7 @@ export default function App({ session, onSignOut }) {
   }, []);
 
   useEffect(() => {
-    if (activeProfile) document.title = `${activeProfile.name} · Audiobook Library`;
+    if (activeProfile) document.title = `${activeProfile.name} · Em's Library`;
   }, [activeProfile]);
 
   // ---- auto-recommend: keep 2 "recommended" books per library ----
