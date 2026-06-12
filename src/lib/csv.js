@@ -153,9 +153,86 @@ export function parseLibbyJSON(text) {
   return { books, errors: [], note: skipped ? `${skipped} non-audiobook entries skipped` : null };
 }
 
+// ---- Audible Library Extractor JSON import ----
+// Accepts the JSON exported by the "Audible Library Extractor" browser
+// extension (github.com/joonaspaakko/audible-library-extractor).
+// Top-level shape: { books: [...], series: [...], collections: [...], ... }
+
+function parseAudibleLength(str) {
+  if (!str) return null;
+  const h = Number(str.match(/(\d+)\s*h(?:r|rs)?/i)?.[1] ?? 0);
+  const m = Number(str.match(/(\d+)\s*m(?:in|ins)?/i)?.[1] ?? 0);
+  const total = h * 60 + m;
+  return total > 0 ? total : null;
+}
+
+export function parseAudibleJSON(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { return { books: [], errors: ["Invalid JSON file"] }; }
+
+  const items = data.books ?? [];
+  if (!Array.isArray(items) || !items.length)
+    return { books: [], errors: ["No books found in Audible export — make sure this is an Audible Library Extractor JSON file"] };
+
+  const books = [];
+  const errors = [];
+
+  for (const item of items) {
+    const title = (item.titleShort ?? item.title ?? "").trim();
+    if (!title) continue;
+    try {
+      const author = (item.authors ?? []).map((a) => a.name).filter(Boolean).join(", ") || null;
+      const narrator = (item.narrators ?? []).map((n) => n.name).filter(Boolean).join(", ") || null;
+      const duration_minutes = parseAudibleLength(item.length);
+      const progress = item.progress ?? 0;
+      const status = progress >= 100 ? "read" : progress > 0 ? "reading" : "wanttoread";
+      const seriesInfo = item.series?.[0] ?? null;
+      const series_title = seriesInfo?.name ?? null;
+      const rawPos = seriesInfo?.bookNumbers?.[0];
+      const series_position = rawPos != null ? parseFloat(rawPos) : null;
+      const cover_url = item.cover ? `https://m.media-amazon.com/images/I/${item.cover}._SL500_.jpg` : null;
+      const year = item.releaseDate ? new Date(item.releaseDate + "T00:00:00").getFullYear() : null;
+      const genre = item.categories?.[0]?.name ?? null;
+
+      books.push({
+        title,
+        author,
+        narrator,
+        duration_minutes,
+        status,
+        series_title,
+        series_position: isNaN(series_position) ? null : series_position,
+        cover_url,
+        year,
+        genre,
+        goodreads_rating: Number(item.rating) > 0 ? Number(item.rating) : null,
+        rating: Number(item.myRating) > 0 ? Number(item.myRating) : null,
+        asin: item.asin ?? null,
+        loved: item.favorite === true,
+        progress_percent: progress > 0 && progress < 100 ? progress : null,
+      });
+    } catch (e) {
+      errors.push(`"${title}": ${e.message}`);
+    }
+  }
+
+  const wishlistCount = data.wishlist?.length ?? 0;
+  const note = wishlistCount
+    ? `${items.length} library books imported (${wishlistCount} wishlist items not included)`
+    : null;
+  return { books, errors, note };
+}
+
 // Sniff which importer fits a file's content.
 export function detectImportFormat(text, filename = "") {
-  if (filename.endsWith(".json") || text.trimStart().startsWith("{")) return "libby-json";
+  if (filename.endsWith(".json") || text.trimStart().startsWith("{")) {
+    try {
+      const data = JSON.parse(text);
+      if (Array.isArray(data.books) && (data.series != null || data.books[0]?.asin !== undefined))
+        return "audible";
+    } catch { /* fall through */ }
+    return "libby-json";
+  }
   const header = (parseCSV(text.slice(0, 2000))[0] ?? []).map((h) => h.trim().toLowerCase());
   if (header.includes("exclusive shelf") || (header.includes("my rating") && header.includes("title"))) return "goodreads";
   if (header.includes("activity") && header.includes("timestamp")) return "libby";
