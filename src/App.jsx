@@ -14,7 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -27,6 +27,23 @@ function withAutoDates(fields, prev) {
     if (!out.date_started && prev?.date_started) out.date_started = prev.date_started;
   }
   return out;
+}
+
+// Toolbar icon button whose label slides out on hover, widening the button
+// (neighbors shift naturally in the flex row) — replaces title tooltips.
+function ToolbarButton({ icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="group flex cursor-pointer items-center rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+    >
+      {icon}
+      <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium transition-[max-width,margin] duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-[8rem]">
+        {label}
+      </span>
+    </button>
+  );
 }
 
 function CreateFirstLibrary({ onCreate }) {
@@ -93,7 +110,8 @@ export default function App({ session, onSignOut }) {
   const [addingProfile, setAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [theme, setTheme] = useState(localStorage.getItem("lib_theme") ?? "light");
-  const [prefs, setPrefs] = useState({}); // user_settings.settings jsonb (view, libby_key, …)
+  const [size, setSize] = useState(localStorage.getItem("lib_size") ?? "compact");
+  const [prefs, setPrefs] = useState({}); // user_settings.settings jsonb (view, libby_key, size, …)
 
   const savePrefs = (patch) => {
     setPrefs((p) => {
@@ -122,6 +140,9 @@ export default function App({ session, onSignOut }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("lib_theme", theme);
   }, [theme]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("size-large", size === "large");
+  }, [size]);
   useEffect(() => { localStorage.setItem("lib_view", view); }, [view]);
 
   // ---- initial load ----
@@ -138,6 +159,10 @@ export default function App({ session, onSignOut }) {
         setAppSettings(app);
         if (settings.theme) setTheme(settings.theme);
         if (settings.settings?.view) setView(settings.settings.view);
+        if (settings.settings?.size) {
+          setSize(settings.settings.size);
+          localStorage.setItem("lib_size", settings.settings.size);
+        }
         setPrefs(settings.settings ?? {});
         setProfiles(profs);
         const first =
@@ -539,20 +564,30 @@ export default function App({ session, onSignOut }) {
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <button
-              onClick={async () => {
+            <ToolbarButton
+              label={theme === "dark" ? "Light mode" : "Dark mode"}
+              icon={theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+              onClick={() => {
                 const next = theme === "dark" ? "light" : "dark";
                 setTheme(next);
                 db.saveUserSettings(uid, { theme: next }).catch(() => {});
               }}
-              className="rounded-lg p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer"
-              title="Toggle theme"
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-            <button onClick={() => setSettingsOpen(true)} className="rounded-lg p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" title="Settings">
-              <SettingsIcon className="h-4 w-4" />
-            </button>
+            />
+            <ToolbarButton
+              label={size === "large" ? "Compact view" : "Larger view"}
+              icon={<ALargeSmall className="h-4 w-4 shrink-0" />}
+              onClick={() => {
+                const next = size === "large" ? "compact" : "large";
+                setSize(next);
+                localStorage.setItem("lib_size", next);
+                savePrefs({ size: next });
+              }}
+            />
+            <ToolbarButton
+              label="Settings"
+              icon={<SettingsIcon className="h-4 w-4 shrink-0" />}
+              onClick={() => setSettingsOpen(true)}
+            />
             <button onClick={() => setForm({ book: null })} className={`${btnPrimary} !py-1.5`}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>

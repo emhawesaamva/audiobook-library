@@ -6,10 +6,15 @@ import App from "./App.jsx";
 import { btnPrimary, inputCls, labelCls, Dialog } from "./components/shared.jsx";
 import "./index.css";
 
-// Apply saved theme before first paint to avoid a flash. Default is light.
+// Apply saved theme and display size before first paint to avoid a flash.
+// Defaults: light theme, compact size.
 document.documentElement.classList.toggle(
   "dark",
   localStorage.getItem("lib_theme") === "dark"
+);
+document.documentElement.classList.toggle(
+  "size-large",
+  localStorage.getItem("lib_size") === "large"
 );
 
 function NewPasswordForm({ onDone }) {
