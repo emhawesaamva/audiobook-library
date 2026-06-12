@@ -1,99 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Em's Audiobook Library</title>
-    <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-      /* ── Dark theme (default) ───────────────────────── */
-      :root {
-        --bg:             #0c0a09;
-        --surface:        #1c1917;
-        --surface-mid:    #292524;
-        --border:         #44403c;
-        --border-subtle:  #292524;
-        --text:           #e7e5e4;
-        --text-muted:     #a8a29e;
-        --text-dim:       #78716c;
-        --text-dimmer:    #57534e;
-        --star-empty:     #374151;
-        --accent:         #f59e0b;
-        --accent-fg:      #0c0a09;
-        --danger:         #f87171;
-        --danger-bg:      #7f1d1d;
-        --status-err-bg:  #0f0505;
-        --status-ok-bg:   #050f05;
-        /* special author */
-        --special-author: #a78bfa;
-        --special-bg:     #2e1065;
-        --special-border: #4c1d95;
-        /* status chips */
-        --chip-read-bg:        #052e16;
-        --chip-read-text:      #4ade80;
-        --chip-read-border:    #166534;
-        --chip-reading-bg:     #172554;
-        --chip-reading-text:   #60a5fa;
-        --chip-reading-border: #1e3a8a;
-        --chip-want-bg:        #2d1b69;
-        --chip-want-text:      #a78bfa;
-        --chip-want-border:    #4c1d95;
-        --chip-rec-bg:         #451a03;
-        --chip-rec-text:       #fbbf24;
-        --chip-rec-border:     #92400e;
-      }
-
-      /* ── Light theme ────────────────────────────────── */
-      [data-theme="light"] {
-        --bg:             #f8f7f6;
-        --surface:        #ffffff;
-        --surface-mid:    #e7e5e4;
-        --border:         #d6d3d1;
-        --border-subtle:  #e7e5e4;
-        --text:           #1c1917;
-        --text-muted:     #57534e;
-        --text-dim:       #78716c;
-        --text-dimmer:    #a8a29e;
-        --star-empty:     #d1cdc9;
-        --accent:         #f59e0b;
-        --accent-fg:      #1c1917;
-        --danger:         #dc2626;
-        --danger-bg:      #fca5a5;
-        --status-err-bg:  #fef2f2;
-        --status-ok-bg:   #f0fdf4;
-        /* special author */
-        --special-author: #6d28d9;
-        --special-bg:     #ede9fe;
-        --special-border: #c4b5fd;
-        /* status chips — dark text, dark outline, light tinted bg */
-        --chip-read-bg:        #dcfce7;
-        --chip-read-text:      #166534;
-        --chip-read-border:    #166534;
-        --chip-reading-bg:     #dbeafe;
-        --chip-reading-text:   #1e3a8a;
-        --chip-reading-border: #1e3a8a;
-        --chip-want-bg:        #ede9fe;
-        --chip-want-text:      #4c1d95;
-        --chip-want-border:    #4c1d95;
-        --chip-rec-bg:         #fef3c7;
-        --chip-rec-text:       #92400e;
-        --chip-rec-border:     #92400e;
-      }
-
-      body { background: var(--bg); }
-
-      /* Ensure native select/option respects theme */
-      select, option { background: var(--surface); color: var(--text); }
-    </style>
-    <!-- Apply saved theme before first paint to prevent flash -->
-    <script>
-      const t = localStorage.getItem("lib_theme");
-      if (t) document.documentElement.dataset.theme = t;
-    </script>
+    <title>Audiobook Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>" />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/main.jsx"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

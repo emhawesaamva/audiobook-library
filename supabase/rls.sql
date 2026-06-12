@@ -1,0 +1,85 @@
+-- Row-level security for Audiobook Library v2. Run after schema.sql.
+-- Also RLS-locks the legacy audiobook_library table (no policies = inaccessible
+-- via anon/authenticated keys; the secret key still reads it server-side).
+
+alter table public.accounts                 enable row level security;
+alter table public.profiles                 enable row level security;
+alter table public.books                    enable row level security;
+alter table public.book_reads               enable row level security;
+alter table public.reading_goals            enable row level security;
+alter table public.rejected_recommendations enable row level security;
+alter table public.library_snapshots        enable row level security;
+alter table public.user_settings            enable row level security;
+alter table public.app_settings             enable row level security;
+alter table public.audiobook_library        enable row level security;
+
+-- ---- accounts ----
+create policy accounts_select on public.accounts for select to authenticated
+  using (id = (select auth.uid()) or public.is_admin());
+create policy accounts_update on public.accounts for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid())
+              and is_admin = (select a.is_admin from public.accounts a where a.id = (select auth.uid())));
+  -- WITH CHECK pins is_admin to its current value: users cannot self-promote.
+create policy accounts_admin_update on public.accounts for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+-- No insert/delete policies: rows are created by the signup trigger and removed
+-- by the auth.users cascade.
+
+-- ---- profiles ----
+create policy profiles_all on public.profiles for all to authenticated
+  using (account_id = (select auth.uid()) or public.is_admin())
+  with check (account_id = (select auth.uid()) or public.is_admin());
+
+-- ---- books / book_reads / reading_goals / rejected / snapshots ----
+create policy books_all on public.books for all to authenticated
+  using (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin())
+  with check (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin());
+
+create policy book_reads_all on public.book_reads for all to authenticated
+  using (exists (select 1 from public.books b
+                 join public.profiles p on p.id = b.profile_id
+                 where b.id = book_id and p.account_id = (select auth.uid()))
+         or public.is_admin())
+  with check (exists (select 1 from public.books b
+                 join public.profiles p on p.id = b.profile_id
+                 where b.id = book_id and p.account_id = (select auth.uid()))
+         or public.is_admin());
+
+create policy goals_all on public.reading_goals for all to authenticated
+  using (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin())
+  with check (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin());
+
+create policy rejected_all on public.rejected_recommendations for all to authenticated
+  using (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin())
+  with check (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin());
+
+create policy snapshots_all on public.library_snapshots for all to authenticated
+  using (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin())
+  with check (exists (select 1 from public.profiles p
+                 where p.id = profile_id and p.account_id = (select auth.uid()))
+         or public.is_admin());
+
+-- ---- user_settings ----
+create policy usettings_all on public.user_settings for all to authenticated
+  using (account_id = (select auth.uid()))
+  with check (account_id = (select auth.uid()));
+
+-- ---- app_settings: world-readable (login page needs signups_disabled), admin-writable ----
+create policy appsettings_read  on public.app_settings for select to anon, authenticated using (true);
+create policy appsettings_write on public.app_settings for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
