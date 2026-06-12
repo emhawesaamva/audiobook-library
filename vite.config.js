@@ -20,6 +20,13 @@ function devApi(env) {
           secretKey: env.SUPABASE_SECRET_KEY,
         });
       });
+      server.middlewares.use("/api/admin/delete-user", async (req, res) => {
+        const { handleDeleteUser } = await server.ssrLoadModule("/api/_lib/admin-core.js");
+        await handleDeleteUser(req, res, {
+          supabaseUrl: env.VITE_SUPABASE_URL,
+          secretKey: env.SUPABASE_SECRET_KEY,
+        });
+      });
     },
   };
 }

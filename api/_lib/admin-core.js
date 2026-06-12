@@ -1,16 +1,34 @@
-// Admin user-listing core, shared by the Vercel function (api/admin/users.js)
-// and the Vite dev middleware. Verifies the caller's JWT, checks their
-// accounts.is_admin flag, then lists all users with profile/book counts using
-// the secret (service-role) key.
+// Admin core handlers shared by Vercel functions and the Vite dev middleware.
+// Each handler verifies the caller's JWT and admin flag before acting.
 
 const UA = { "User-Agent": "library-admin/1.0" };
 
-export async function handleAdminUsers(req, res, { supabaseUrl, secretKey }) {
-  const json = (status, body) => {
+function makeJson(res) {
+  return (status, body) => {
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(body));
   };
+}
+
+async function verifyAdmin(supabaseUrl, secretKey, jwt) {
+  const svc = { apikey: secretKey, Authorization: `Bearer ${secretKey}`, ...UA };
+  const userResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: { apikey: secretKey, Authorization: `Bearer ${jwt}`, ...UA },
+  });
+  if (!userResp.ok) return { error: "Invalid session" };
+  const caller = await userResp.json();
+  const acctResp = await fetch(
+    `${supabaseUrl}/rest/v1/accounts?select=is_admin&id=eq.${caller.id}`,
+    { headers: svc }
+  );
+  const [acct] = await acctResp.json();
+  if (!acct?.is_admin) return { error: "Admin only" };
+  return { caller, svc };
+}
+
+export async function handleAdminUsers(req, res, { supabaseUrl, secretKey }) {
+  const json = makeJson(res);
 
   try {
     if (!supabaseUrl || !secretKey) return json(500, { error: "Server not configured" });
@@ -18,26 +36,8 @@ export async function handleAdminUsers(req, res, { supabaseUrl, secretKey }) {
     const jwt = (req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
     if (!jwt) return json(401, { error: "Missing bearer token" });
 
-    const svc = {
-      apikey: secretKey,
-      Authorization: `Bearer ${secretKey}`,
-      ...UA,
-    };
-
-    // Resolve the caller from their JWT (auth server validates it).
-    const userResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: secretKey, Authorization: `Bearer ${jwt}`, ...UA },
-    });
-    if (!userResp.ok) return json(401, { error: "Invalid session" });
-    const caller = await userResp.json();
-
-    // Admin check against the accounts table.
-    const acctResp = await fetch(
-      `${supabaseUrl}/rest/v1/accounts?select=is_admin&id=eq.${caller.id}`,
-      { headers: svc }
-    );
-    const [acct] = await acctResp.json();
-    if (!acct?.is_admin) return json(403, { error: "Admin only" });
+    const { error, caller, svc } = await verifyAdmin(supabaseUrl, secretKey, jwt);
+    if (error) return json(error === "Admin only" ? 403 : 401, { error });
 
     // List all auth users (paged) + account rows + per-account counts.
     const users = [];
@@ -83,5 +83,56 @@ export async function handleAdminUsers(req, res, { supabaseUrl, secretKey }) {
     });
   } catch (err) {
     return json(500, { error: err.message ?? "admin lookup failed" });
+  }
+}
+
+// DELETE /api/admin/delete-user?userId={id}
+// Deletes the target auth user and — via cascade — all their profiles, books,
+// settings, and every other row tied to their account. Guards:
+//   • Caller must be admin.
+//   • Cannot delete yourself.
+//   • Cannot delete another admin account.
+export async function handleDeleteUser(req, res, { supabaseUrl, secretKey }) {
+  const json = makeJson(res);
+
+  if (req.method !== "DELETE") return json(405, { error: "Method not allowed" });
+
+  try {
+    if (!supabaseUrl || !secretKey) return json(500, { error: "Server not configured" });
+
+    const jwt = (req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
+    if (!jwt) return json(401, { error: "Missing bearer token" });
+
+    // Support req.query (Vercel) and raw query string (Vite dev middleware).
+    const params = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+    const userId = req.query?.userId ?? params.get("userId");
+    if (!userId) return json(400, { error: "Missing userId" });
+
+    const { error, caller, svc } = await verifyAdmin(supabaseUrl, secretKey, jwt);
+    if (error) return json(error === "Admin only" ? 403 : 401, { error });
+
+    if (userId === caller.id) return json(400, { error: "Cannot delete your own account" });
+
+    // Refuse to delete another admin to prevent accidental lockout.
+    const targetResp = await fetch(
+      `${supabaseUrl}/rest/v1/accounts?select=is_admin&id=eq.${userId}`,
+      { headers: svc }
+    );
+    const [targetAcct] = await targetResp.json();
+    if (targetAcct?.is_admin) return json(400, { error: "Cannot delete an admin account" });
+
+    // Delete the auth.users row — cascades through accounts → profiles → books etc.
+    const del = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: "DELETE",
+      headers: svc,
+    });
+    if (!del.ok) {
+      const body = await del.json().catch(() => ({}));
+      return json(502, { error: body.message ?? "Delete failed" });
+    }
+
+    return json(200, { ok: true });
+  } catch (err) {
+    return json(500, { error: err.message ?? "Delete failed" });
   }
 }
