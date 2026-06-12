@@ -334,7 +334,7 @@ export default function Settings({
                   <li>Return here, click Import, and select that file.</li>
                 </ol>
                 <a
-                  href="https://github.com/joonaspaakko/audible-library-extractor"
+                  href="https://chrome.google.com/webstore/detail/audible-library-extractor/deifcolkciolkllaikijldnjeloeaall"
                   target="_blank" rel="noopener noreferrer"
                   className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
                 >
