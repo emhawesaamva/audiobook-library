@@ -673,6 +673,7 @@ export default function App({ session, onSignOut }) {
           profiles={profiles}
           books={books}
           session={session}
+          onSelectProfile={selectProfile}
           onRenameProfile={async (name) => {
             const p = await db.updateProfile(activeId, { name });
             setProfiles(profiles.map((x) => (x.id === activeId ? p : x)));

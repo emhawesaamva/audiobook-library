@@ -1,6 +1,7 @@
 // Settings dialog: library (profile) management, Goodreads import,
-// CSV/JSON export, and account info.
-import { useState, useRef } from "react";
+// CSV/JSON export, and account info. The library dropdown at the top selects
+// which library the panel configures (it also switches the active library).
+import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
 import { parseGoodreadsCSV, booksToCSV, download } from "../lib/csv.js";
 import { Upload, Download } from "lucide-react";
@@ -14,10 +15,13 @@ const AGE_GROUPS = [
 
 export default function Settings({
   profile, profiles, books, session,
-  onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks, onClose, onSignOut, onToast,
+  onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks, onClose, onSignOut, onToast,
 }) {
   const [name, setName] = useState(profile.name);
   const [confirming, setConfirming] = useState(false);
+
+  // Keep the rename field in sync when a different library is selected.
+  useEffect(() => { setName(profile.name); setConfirming(false); }, [profile.id, profile.name]);
   const [importing, setImporting] = useState(null); // {total, done, enrich} during import
   const [enrich, setEnrich] = useState(true);
   const fileRef = useRef(null);
@@ -74,10 +78,25 @@ export default function Settings({
   const section = "border-t border-zinc-100 pt-4 mt-4 dark:border-zinc-800";
 
   return (
-    <Dialog title="Settings" onClose={onClose}>
-      {/* ---- library ---- */}
+    <Dialog title="Library settings" onClose={onClose}>
+      {/* ---- which library ---- */}
       <div>
-        <label className={labelCls}>Library name</label>
+        <label className={labelCls}>Library</label>
+        <select
+          value={profile.id}
+          onChange={(e) => onSelectProfile(e.target.value)}
+          className={inputCls}
+        >
+          {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Everything below applies to <strong>{profile.name}</strong>.
+        </p>
+      </div>
+
+      {/* ---- rename ---- */}
+      <div className="mt-4">
+        <label className={labelCls}>Rename this library</label>
         <div className="flex gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
           <button
@@ -147,15 +166,18 @@ export default function Settings({
           />
         ) : (
           <button onClick={() => setConfirming(true)} disabled={lastProfile} className={`${btnDanger} w-full`} title={lastProfile ? "You can't delete your only library" : undefined}>
-            Delete this library{lastProfile ? " (create another first)" : ""}
+            Delete the library “{profile.name}”{lastProfile ? " (create another first)" : ""}
           </button>
         )}
       </div>
 
       {/* ---- account ---- */}
-      <div className={`${section} flex items-center justify-between text-sm`}>
-        <span className="truncate text-zinc-600 dark:text-zinc-400">{session.user.email}</span>
-        <button onClick={onSignOut} className={`${btnSecondary} !py-1.5 text-xs`}>Sign out</button>
+      <div className={section}>
+        <div className={labelCls}>Account</div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="truncate text-zinc-600 dark:text-zinc-400">{session.user.email}</span>
+          <button onClick={onSignOut} className={`${btnSecondary} !py-1.5 text-xs`}>Sign out</button>
+        </div>
       </div>
     </Dialog>
   );
