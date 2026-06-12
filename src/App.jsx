@@ -14,7 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -717,11 +717,21 @@ export default function App({ session, onSignOut }) {
                 ))}
               </div>
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <input
-                  value={search} onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search title, author, narrator…"
-                  className={`${inputCls} !w-56 !py-1.5`}
-                />
+                <div className="relative">
+                  <input
+                    value={search} onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search title, author, narrator…"
+                    className={`${inputCls} !w-56 !py-1.5 ${search ? "!pr-7" : ""}`}
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
                 <select value={genre} onChange={(e) => setGenre(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
                   {genres.map((g) => <option key={g} value={g}>{g === "all" ? "All genres" : g}</option>)}
                 </select>
