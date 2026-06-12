@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
 import { searchBooks as metaSearch, resultToBook } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating } from "./lib/bookUtils.js";
+import { getStatus, calcSeriesRating, flattenBooks } from "./lib/bookUtils.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
 import SeriesModal from "./components/SeriesModal.jsx";
@@ -188,6 +188,7 @@ export default function App({ session, onSignOut }) {
           setBanner({ text: `Finding a recommendation for you${needed > 1 ? ` (${i + 1}/${needed})` : ""}…` });
           const exclude = new Set([
             ...current.map((b) => b.title.toLowerCase()),
+            ...flattenBooks(current).map((b) => b.title.toLowerCase()),
             ...rejected.map((t) => t.toLowerCase()),
           ]);
           const lovedAuthors = [...new Set(current.filter((b) => b.loved || Number(b.rating) >= 5).map((b) => b.author).filter(Boolean))];

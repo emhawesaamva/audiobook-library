@@ -5,13 +5,16 @@ import { useState } from "react";
 import { Spinner, btnPrimary, btnSecondary, inputCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
+import { flattenBooks } from "../lib/bookUtils.js";
 
 export default function Recommend({ books, profileName, ageGroup, model, onAdd, onToast }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
   const [added, setAdded] = useState({});
-  const existingTitles = new Set(books.map((b) => b.title.toLowerCase()));
+  const existingTitles = new Set(
+    [...books, ...flattenBooks(books)].map((b) => b.title.toLowerCase())
+  );
   const lovedAuthors = [...new Set(books.filter((b) => b.loved || Number(b.rating) >= 5).map((b) => b.author).filter(Boolean))];
 
   const go = async () => {
