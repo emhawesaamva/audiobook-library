@@ -566,13 +566,14 @@ export default function App({ session, onSignOut }) {
       <header className="sticky top-0 z-40 border-b border-zinc-300/90 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5">
           <Headphones className="h-5 w-5 text-accent-500" />
-          {/* library switcher */}
+          {/* library switcher — tabs extend down to the header's bottom border:
+              extra bottom padding plus a negative margin canceling the header's py-2.5 */}
           <div className="flex items-center gap-1">
             {profiles.map((p) => (
               <button
                 key={p.id}
                 onClick={() => p.id !== activeId && selectProfile(p.id)}
-                className={`rounded-t-lg border px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
+                className={`-mb-2.5 rounded-t-lg border border-b-0 px-3 pt-1.5 pb-4 text-sm font-medium transition cursor-pointer ${
                   p.id === activeId
                     ? "border-accent-500 bg-accent-500 text-zinc-900"
                     : "border-zinc-300/90 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
