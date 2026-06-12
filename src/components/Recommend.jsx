@@ -3,10 +3,48 @@
 // real metadata (cover, narrator, duration) before saving. With a Libby
 // library code configured, each pick also shows live library availability.
 import { useState, useEffect } from "react";
-import { Spinner, btnPrimary, btnSecondary, inputCls } from "./shared.jsx";
+import { Dialog, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
 import { flattenBooks, libbySearchUrl } from "../lib/bookUtils.js";
+
+// Shown when the user clicks a Libby badge without a library code configured.
+function LibbySetupDialog({ book, onSave, onClose }) {
+  const [code, setCode] = useState("");
+  return (
+    <Dialog title="Connect your Libby library" onClose={onClose}>
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        With your library's code saved, Libby badges show live availability and wait times from
+        your library's actual catalog.
+      </p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
+        <li>Open <a href="https://libbyapp.com" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:underline">libbyapp.com</a> and go to your library</li>
+        <li>Look at the address bar: <span className="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">libbyapp.com/library/<strong>code</strong></span></li>
+        <li>Paste that last part below</li>
+      </ol>
+      <div className="mt-3">
+        <label className={labelCls}>Library code</label>
+        <input
+          autoFocus value={code}
+          onChange={(e) => setCode(e.target.value.trim().toLowerCase())}
+          onKeyDown={(e) => e.key === "Enter" && code && onSave(code)}
+          placeholder="e.g. lapl" className={inputCls}
+        />
+      </div>
+      <div className="mt-4 flex gap-2">
+        <button onClick={() => code && onSave(code)} disabled={!code} className={`${btnPrimary} flex-1`}>
+          Save & check availability
+        </button>
+        <a
+          href={libbySearchUrl(book)} target="_blank" rel="noopener noreferrer"
+          onClick={onClose} className={btnSecondary}
+        >
+          Skip — just search
+        </a>
+      </div>
+    </Dialog>
+  );
+}
 
 function LibbyBadge({ status, book, libbyKey }) {
   if (!status) return null;
@@ -23,12 +61,13 @@ function LibbyBadge({ status, book, libbyKey }) {
   );
 }
 
-export default function Recommend({ books, profileName, ageGroup, model, libbyKey, onAdd, onToast }) {
+export default function Recommend({ books, profileName, ageGroup, model, libbyKey, onLibbyKeyChange, onAdd, onToast }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
   const [added, setAdded] = useState({});
   const [libbyStatus, setLibbyStatus] = useState({});
+  const [libbySetup, setLibbySetup] = useState(null); // book whose badge was clicked
 
   // Best-effort availability check at the user's library for each pick.
   useEffect(() => {
@@ -120,7 +159,16 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
               {r.year && <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">{r.year}</span>}
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              <LibbyBadge status={libbyStatus[r.title]} book={r} libbyKey={libbyKey} />
+              {libbyKey ? (
+                <LibbyBadge status={libbyStatus[r.title]} book={r} libbyKey={libbyKey} />
+              ) : (
+                <button
+                  onClick={() => setLibbySetup(r)}
+                  className="shrink-0 cursor-pointer rounded-md bg-sky-100 px-2 py-1 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900"
+                >
+                  LIBBY ↗
+                </button>
+              )}
               <a
                 href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
                 target="_blank" rel="noopener noreferrer"
@@ -153,6 +201,14 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
           </div>
         </div>
       ))}
+
+      {libbySetup && (
+        <LibbySetupDialog
+          book={libbySetup}
+          onSave={(code) => { onLibbyKeyChange?.(code); setLibbySetup(null); onToast?.({ text: "Libby library saved — checking availability" }); }}
+          onClose={() => setLibbySetup(null)}
+        />
+      )}
 
       {lovedAuthors.length > 0 && (
         <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">

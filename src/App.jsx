@@ -689,6 +689,7 @@ export default function App({ session, onSignOut }) {
             ageGroup={activeProfile.age_group}
             model={appSettings.default_model}
             libbyKey={prefs.libby_key}
+            onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
             onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); }}
             onToast={setToast}
           />
