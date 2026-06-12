@@ -224,7 +224,12 @@ export default function BookForm({
                 >
                   <Cover book={r} className="h-12 w-8 shrink-0" rounded="rounded" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{r.title}</span>
+                    <span className="block truncate text-sm font-medium">
+                      {r.title}
+                      {r.public_rating && (
+                        <span className="ml-1.5 text-xs font-semibold text-accent-600">★ {r.public_rating.average}</span>
+                      )}
+                    </span>
                     <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
                       {r.author}{r.narrator ? ` · ${r.narrator}` : ""}{r.year ? ` · ${r.year}` : ""}
                       {r.series ? ` · ${r.series.title}${r.series.position ? ` #${r.series.position}` : ""}` : ""}
