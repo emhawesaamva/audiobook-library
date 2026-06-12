@@ -56,7 +56,7 @@ function GoalRing({ label, current, target, unit }) {
   );
 }
 
-export default function Stats({ books, goals, onSetGoal, readOnly = false }) {
+export default function Stats({ books, goals, onSetGoal, readOnly = false, title = "Your year in audiobooks", possessive = "Your" }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
 
@@ -155,7 +155,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold">Your year in audiobooks</h2>
+        <h2 className="text-lg font-semibold">{title}</h2>
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${inputCls} !w-28`}>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -256,7 +256,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false }) {
           {stats.gems.length > 0 && (
             <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                <Gem className="h-3.5 w-3.5" /> Your hidden gems
+                <Gem className="h-3.5 w-3.5" /> {possessive} hidden gems
               </div>
               <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">You loved these well beyond the crowd — your best personal recommendations.</p>
               <div className="space-y-1.5 text-sm">
