@@ -214,7 +214,7 @@ export default function App({ session, onSignOut }) {
   }, []);
 
   useEffect(() => {
-    if (activeProfile) document.title = `${activeProfile.name} · Em's Library`;
+    if (activeProfile) document.title = `${activeProfile.name} · AudioLib.io`;
   }, [activeProfile]);
 
   // ---- auto-recommend: keep 2 "recommended" books per library ----
@@ -538,6 +538,7 @@ export default function App({ session, onSignOut }) {
   const cardProps = (b) => ({
     book: b,
     libbyKey: prefs.libby_key,
+    affiliateTag: appSettings.affiliate_tag || null,
     onEdit: () => (b._parentSeries ? setSeriesOpen(b._parentSeries.id) : setForm({ book: b })),
     onDelete: () => removeBook(b),
     onOpen: b.is_series ? () => openSeries(b.id) : undefined,
@@ -830,6 +831,7 @@ export default function App({ session, onSignOut }) {
             ageGroup={activeProfile.age_group}
             model={appSettings.default_model}
             libbyKey={prefs.libby_key}
+            affiliateTag={appSettings.affiliate_tag || null}
             onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
             onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); }}
             onToast={setToast}
@@ -840,6 +842,12 @@ export default function App({ session, onSignOut }) {
           <Admin appSettings={appSettings} onSettingsChange={setAppSettings} onToast={setToast} />
         )}
       </main>
+
+      {appSettings.affiliate_tag && (
+        <footer className="mt-8 pb-6 text-center text-xs text-zinc-400 dark:text-zinc-600 px-4">
+          As an Amazon Associate, AudioLib.io earns from qualifying purchases.
+        </footer>
+      )}
 
       {/* ---- dialogs ---- */}
       {form && (

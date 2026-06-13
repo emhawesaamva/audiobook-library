@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { Dialog, Spinner, Stars, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
-import { flattenBooks, libbySearchUrl, sameTitle } from "../lib/bookUtils.js";
+import { flattenBooks, libbySearchUrl, sameTitle, audibleSearchUrl } from "../lib/bookUtils.js";
 
 // Shown when the user clicks a Libby badge without a library code configured.
 function LibbySetupDialog({ book, onSave, onClose }) {
@@ -61,7 +61,7 @@ function LibbyBadge({ status, book, libbyKey }) {
   );
 }
 
-export default function Recommend({ books, profileName, ageGroup, model, libbyKey, onLibbyKeyChange, onAdd, onToast }) {
+export default function Recommend({ books, profileName, ageGroup, model, libbyKey, affiliateTag, onLibbyKeyChange, onAdd, onToast }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -230,7 +230,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
                 </button>
               )}
               <a
-                href={`https://www.audible.com/search?keywords=${encodeURIComponent(`${r.title} ${r.author}`).replace(/%20/g, "+")}`}
+                href={audibleSearchUrl(r, affiliateTag)}
                 target="_blank" rel="noopener noreferrer"
                 className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
               >

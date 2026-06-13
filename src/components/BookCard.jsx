@@ -7,7 +7,7 @@ import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
 
-function ActionMenu({ book, libbyKey, onEdit, onDelete, onQueueToggle, onAdd, readOnly, onClose }) {
+function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -29,7 +29,7 @@ function ActionMenu({ book, libbyKey, onEdit, onDelete, onQueueToggle, onAdd, re
               <Plus className="h-3.5 w-3.5" /> Add to my library
             </button>
           )}
-          <a className={item} href={audibleSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
+          <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
           <a className={item} href={libbySearchUrl(book, libbyKey)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Library className="h-3.5 w-3.5" /> Libby</a>
           <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
         </>
@@ -61,7 +61,7 @@ function ActionMenu({ book, libbyKey, onEdit, onDelete, onQueueToggle, onAdd, re
               {queued ? <><ListX className="h-3.5 w-3.5" /> Remove from Up Next</> : <><ListPlus className="h-3.5 w-3.5" /> Add to Up Next</>}
             </button>
           )}
-          <a className={item} href={audibleSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
+          <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
           <a className={item} href={libbySearchUrl(book, libbyKey)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Library className="h-3.5 w-3.5" /> Libby</a>
           <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
           <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
@@ -94,7 +94,7 @@ function seriesMeta(book) {
 }
 
 // ---- view: card grid ----
-export function BookCardGrid({ book, libbyKey, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -137,14 +137,14 @@ export function BookCardGrid({ book, libbyKey, onEdit, onDelete, onOpen, onQueue
       {/* Menu button outside overflow-hidden so the dropdown can overflow the card. */}
       <div className="absolute right-1 top-1 z-20" onClick={(e) => e.stopPropagation()}>
         <MenuButton open={menu} setOpen={setMenu} />
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
       </div>
     </div>
   );
 }
 
 // ---- view: cover grid ----
-export function BookCoverTile({ book, libbyKey, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -170,7 +170,7 @@ export function BookCoverTile({ book, libbyKey, onEdit, onDelete, onOpen, onQueu
         <span className="inline-block rounded-md bg-black/55 text-white [&>button]:opacity-100 [&>button]:text-white/90">
           <MenuButton open={menu} setOpen={setMenu} />
         </span>
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
       </div>
       <div className="mt-1.5 truncate text-xs font-medium">{book.title}</div>
       <div className="flex items-center justify-between">
@@ -182,7 +182,7 @@ export function BookCoverTile({ book, libbyKey, onEdit, onDelete, onOpen, onQueu
 }
 
 // ---- view: list row ----
-export function BookListRow({ book, libbyKey, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -208,7 +208,7 @@ export function BookListRow({ book, libbyKey, onEdit, onDelete, onOpen, onQueueT
       <div className="w-14 text-right"><StatusChip status={status} /></div>
       <div className="relative w-7 shrink-0">
         <MenuButton open={menu} setOpen={setMenu} />
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
       </div>
     </div>
   );
