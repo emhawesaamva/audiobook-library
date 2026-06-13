@@ -106,9 +106,10 @@ export function sameTitle(a, b) {
     (kb.length >= 8 && ka.startsWith(kb));
 }
 
-export function audibleSearchUrl(book) {
+export function audibleSearchUrl(book, affiliateTag = null) {
   const q = encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim()).replace(/%20/g, "+");
-  return `https://www.audible.com/search?keywords=${q}`;
+  const url = `https://www.audible.com/search?keywords=${q}`;
+  return affiliateTag ? `${url}&tag=${affiliateTag}` : url;
 }
 
 // Libby search deep link. With a library code (the slug from the user's

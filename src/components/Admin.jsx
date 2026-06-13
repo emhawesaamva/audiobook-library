@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import supabase from "../lib/supabase.js";
 import { setAppSetting } from "../lib/db.js";
-import { Spinner, labelCls } from "./shared.jsx";
+import { Spinner, labelCls, inputCls } from "./shared.jsx";
 import { Trash2 } from "lucide-react";
 
 export default function Admin({ appSettings, onSettingsChange, onToast }) {
@@ -11,6 +11,12 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(null); // userId
   const [deleting, setDeleting] = useState(false);
+  const [affiliateCode, setAffiliateCode] = useState(appSettings.affiliate_tag ?? "");
+  const [savingAffiliate, setSavingAffiliate] = useState(false);
+
+  useEffect(() => {
+    setAffiliateCode(appSettings.affiliate_tag ?? "");
+  }, [appSettings.affiliate_tag]);
 
   useEffect(() => {
     (async () => {
@@ -28,6 +34,20 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
       }
     })();
   }, []);
+
+  const saveAffiliateTag = async () => {
+    setSavingAffiliate(true);
+    try {
+      const trimmed = affiliateCode.trim();
+      await setAppSetting("affiliate_tag", trimmed || null);
+      onSettingsChange({ ...appSettings, affiliate_tag: trimmed || null });
+      onToast?.({ text: trimmed ? "Affiliate tag saved" : "Affiliate tag cleared" });
+    } catch (e) {
+      onToast?.({ text: e.message, isError: true });
+    } finally {
+      setSavingAffiliate(false);
+    }
+  };
 
   const toggleSignups = async () => {
     const next = !(appSettings.signups_disabled === true);
@@ -77,6 +97,29 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
           </button>
           Disable new account signups
         </label>
+
+        <div className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+          <label className={labelCls}>Amazon Associates affiliate tag</label>
+          <div className="mt-1.5 flex gap-2">
+            <input
+              type="text"
+              value={affiliateCode}
+              onChange={(e) => setAffiliateCode(e.target.value)}
+              placeholder="e.g. mystore-20"
+              className={`${inputCls} flex-1 !py-1.5`}
+            />
+            <button
+              onClick={saveAffiliateTag}
+              disabled={savingAffiliate}
+              className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-semibold text-zinc-900 hover:bg-accent-400 disabled:opacity-50 cursor-pointer"
+            >
+              {savingAffiliate ? "Saving…" : "Save"}
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            When set, all Audible links on the site will include your tag for commission tracking. Amazon's required disclosure will be shown to users automatically.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">

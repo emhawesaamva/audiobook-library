@@ -11,7 +11,7 @@ import {
   getStatus, calcSeriesRating, fmtDuration,
   audibleSearchUrl, goodreadsSearchUrl, flattenBooks,
 } from "../lib/bookUtils.js";
-import { createBook, listProfiles } from "../lib/db.js";
+import { createBook, listProfiles, getAppSettings } from "../lib/db.js";
 import {
   Library, X, Check, Grid3x3, LayoutGrid, List,
   Headphones, BookOpen, Plus,
@@ -79,7 +79,7 @@ function applyFilter(books, filter, sort) {
   return list;
 }
 
-function BookViewModal({ book, onClose, onAdd }) {
+function BookViewModal({ book, affiliateTag, onClose, onAdd }) {
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
   return (
@@ -111,7 +111,7 @@ function BookViewModal({ book, onClose, onAdd }) {
               <Plus className="h-3.5 w-3.5" /> Add to my library
             </button>
           )}
-          <a href={audibleSearchUrl(book)} target="_blank" rel="noopener noreferrer"
+          <a href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
             <Headphones className="h-3.5 w-3.5" /> Audible
           </a>
@@ -200,6 +200,7 @@ export default function PublicProfile({ profileId }) {
   const [viewerSession, setViewerSession] = useState(undefined);
   const [viewerProfiles, setViewerProfiles] = useState([]);
 
+  const [affiliateTag, setAffiliateTag] = useState(null);
   const [tab, setTab] = useState("library");
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("added");
@@ -230,6 +231,10 @@ export default function PublicProfile({ profileId }) {
     }
     load();
   }, [profileId]);
+
+  useEffect(() => {
+    getAppSettings().then((s) => setAffiliateTag(s.affiliate_tag || null)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setViewerSession(data.session ?? null));
@@ -303,6 +308,7 @@ export default function PublicProfile({ profileId }) {
       book: b,
       readOnly: true,
       libbyKey: undefined,
+      affiliateTag,
       onEdit: b.is_series ? undefined : () => setViewingBook(b),
       onOpen: b.is_series ? () => setViewingSeries(b) : undefined,
       onAdd: () => handleAdd(b),
@@ -454,9 +460,16 @@ export default function PublicProfile({ profileId }) {
         )}
       </main>
 
+      {affiliateTag && (
+        <footer className="mt-8 pb-6 text-center text-xs text-zinc-400 dark:text-zinc-600 px-4">
+          As an Amazon Associate, AudioLib.io earns from qualifying purchases.
+        </footer>
+      )}
+
       {viewingBook && (
         <BookViewModal
           book={viewingBook}
+          affiliateTag={affiliateTag}
           onClose={() => setViewingBook(null)}
           onAdd={handleAdd}
         />
