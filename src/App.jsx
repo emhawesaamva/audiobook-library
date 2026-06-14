@@ -654,16 +654,20 @@ export default function App({ session, onSignOut }) {
               icon={<Share2 className="h-4 w-4 shrink-0" />}
               onClick={() => setShareOpen(true)}
             />
-            <ToolbarButton
-              label={size === "large" ? "Compact view" : "Larger view"}
-              icon={<ALargeSmall className="h-[19px] w-[19px] shrink-0" />}
-              onClick={() => {
-                const next = size === "large" ? "compact" : "large";
-                setSize(next);
-                localStorage.setItem("lib_size", next);
-                savePrefs({ size: next });
-              }}
-            />
+            {/* Larger/Compact toggle is a no-op below 640px (size-large only
+                scales at >=640px), so it's hidden on mobile. */}
+            <span className="hidden sm:inline-flex">
+              <ToolbarButton
+                label={size === "large" ? "Compact view" : "Larger view"}
+                icon={<ALargeSmall className="h-[19px] w-[19px] shrink-0" />}
+                onClick={() => {
+                  const next = size === "large" ? "compact" : "large";
+                  setSize(next);
+                  localStorage.setItem("lib_size", next);
+                  savePrefs({ size: next });
+                }}
+              />
+            </span>
             <ToolbarButton
               label="Settings"
               icon={<SettingsIcon className="h-4 w-4 shrink-0" />}

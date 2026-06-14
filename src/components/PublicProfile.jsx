@@ -14,7 +14,7 @@ import {
 import { createBook, listProfiles, getAppSettings } from "../lib/db.js";
 import {
   Library, X, Check, Grid3x3, LayoutGrid, List,
-  Headphones, BookOpen, Plus,
+  Headphones, BookOpen, Plus, BarChart3,
 } from "lucide-react";
 
 const anonClient = createClient(
@@ -342,53 +342,53 @@ export default function PublicProfile({ profileId }) {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
+      {/* Header (page tabs moved in; second toolbar removed) */}
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <a href="/" className="flex items-center gap-1.5 font-semibold text-zinc-900 hover:opacity-80 dark:text-zinc-100">
-            <Library className="h-5 w-5 text-accent-600" />
-            <span className="hidden sm:inline">Library</span>
+        <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-3">
+          <a href="/" className="flex shrink-0 items-center gap-1.5 font-bold text-zinc-900 hover:opacity-80 dark:text-zinc-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 shadow-sm">
+              <Headphones className="h-4 w-4 text-zinc-900" />
+            </span>
+            <span className="hidden sm:inline">AudioLib<span className="text-accent-600">.io</span></span>
           </a>
-          <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
-          <div className="min-w-0 flex-1 flex items-center gap-2">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{profile.name}</span>
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          <div className="hidden h-4 w-px bg-zinc-200 dark:bg-zinc-700 sm:block" />
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{profile.name}</span>
+            <span className="hidden shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 sm:inline-block">
               Shared Library
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <nav className="flex shrink-0 items-center gap-1">
+            {[["library", "Library", Library], ["stats", "Stats", BarChart3]].map(([id, label, Icon]) => (
+              <button key={id} onClick={() => setTab(id)} aria-label={label}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition cursor-pointer ${
+                  tab === id
+                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                    : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                }`}>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="flex shrink-0 items-center gap-2">
             {addSuccess && (
               <span className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
-                <Check className="h-4 w-4" /> Added
+                <Check className="h-4 w-4" /> <span className="hidden sm:inline">Added</span>
               </span>
             )}
             {addError && (
-              <span className="text-sm text-red-600 dark:text-red-400">{addError}</span>
+              <span className="hidden text-sm text-red-600 dark:text-red-400 sm:inline">{addError}</span>
             )}
             {viewerSession === null && (
               <a href="/" className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-semibold text-zinc-900 hover:bg-accent-400">
-                Sign in to add books
+                <span className="sm:hidden">Sign in</span>
+                <span className="hidden sm:inline">Sign in to add books</span>
               </a>
             )}
           </div>
         </div>
       </header>
-
-      {/* Tabs */}
-      <div className="sticky top-[57px] z-20 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mx-auto flex max-w-5xl gap-1 px-4">
-          {[["library", "Library"], ["stats", "Stats"]].map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition cursor-pointer ${
-                tab === id
-                  ? "border-accent-500 text-accent-700 dark:text-accent-400"
-                  : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         {tab === "library" && (
