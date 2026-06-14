@@ -180,7 +180,7 @@ export default function Landing({ onSignIn }) {
               <p className="mt-5 text-lg text-zinc-600 dark:text-zinc-300">
                 AudioLib is the smart way to track every audiobook you've listened to, rate your
                 favorites, and get personal recommendations from an AI librarian that knows your taste —
-                then listen your way: buy it on Audible or borrow it free from your library with Libby.
+                then listen your way: borrow it free from your library with Libby, or buy it on Audible.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <button className={btnPrimary} onClick={onSignIn}>
@@ -212,12 +212,26 @@ export default function Landing({ onSignIn }) {
 
         {/* ---- listen your way: Audible + Libby, side by side ---- */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
-          <h2 className="text-center text-3xl font-bold">Buy it, or borrow it free</h2>
+          <h2 className="text-center text-3xl font-bold">Borrow it free, or buy it</h2>
           <p className="mx-auto mt-3 max-w-2xl text-center text-zinc-600 dark:text-zinc-300">
-            Every book on your shelf links straight to <strong>both</strong> Audible and Libby — so you
-            choose how to listen: own a copy, or borrow it free from your local library.
+            Every book on your shelf links straight to <strong>both</strong> Libby and Audible — so you
+            choose how to listen: borrow it free from your local library, or own a copy.
           </p>
           <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <div className="rounded-xl border border-zinc-300/90 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500 shadow-sm">
+                  <Library className="h-5 w-5 text-white" />
+                </span>
+                <h3 className="text-lg font-semibold">Borrow free with Libby</h3>
+              </div>
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+                Connect your library card and AudioLib checks Libby for live availability and wait times
+                on your recommended books — so you can see what's free to borrow right now, and jump to
+                any title in one click. Libby is great for borrowing, but it doesn't suggest titles based
+                on your taste. AudioLib adds that, turning your picks into a ready-to-borrow list.
+              </p>
+            </div>
             <div className="rounded-xl border border-zinc-300/90 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-500 shadow-sm">
@@ -228,19 +242,6 @@ export default function Landing({ onSignIn }) {
               <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
                 Jump to any title on Audible in one click — new members can grab their first audiobook
                 free with a trial. Your whole shelf is there waiting, right alongside Audible's own picks.
-              </p>
-            </div>
-            <div className="rounded-xl border border-zinc-300/90 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500 shadow-sm">
-                  <Library className="h-5 w-5 text-white" />
-                </span>
-                <h3 className="text-lg font-semibold">Borrow free with Libby</h3>
-              </div>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
-                Connect your library card and AudioLib checks Libby for live availability and wait times
-                on every book — so you always know what you can borrow free right now. Libby doesn't
-                recommend, so this is a genuine add: your whole list, matched to your library's shelves.
               </p>
             </div>
           </div>
