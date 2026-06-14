@@ -62,7 +62,7 @@ export default function Login({ onBack }) {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500 shadow-md"><Headphones className="h-6 w-6 text-zinc-900" /></div>
-          <h1 className="text-2xl font-bold">AudioLib.io</h1>
+          <h1 className="text-2xl font-bold">AudioLib<span className="text-accent-600">.io</span></h1>
           <p className="mt-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">An audiobook bookshelf and recommendation librarian</p>
           <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">Track, rate, and discover audiobooks.</p>
         </div>
