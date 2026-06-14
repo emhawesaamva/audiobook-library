@@ -6,7 +6,7 @@ import { Headphones } from "lucide-react";
 
 const MODES = { signin: "Sign in", signup: "Create account", reset: "Reset password" };
 
-export default function Login() {
+export default function Login({ onBack }) {
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -122,6 +122,13 @@ export default function Login() {
             )}
           </div>
         </div>
+        {onBack && (
+          <div className="mt-4 text-center">
+            <button onClick={onBack} className="text-sm text-zinc-500 hover:text-accent-600 cursor-pointer">
+              ← Back to home
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

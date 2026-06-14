@@ -13,6 +13,7 @@ import Stats from "./components/Stats.jsx";
 import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
+import AudiblePromo from "./components/AudiblePromo.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
 import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X } from "lucide-react";
 
@@ -130,6 +131,15 @@ export default function App({ session, onSignOut }) {
       db.saveUserSettings(uid, { settings: merged }).catch(() => {});
       return merged;
     });
+  };
+
+  // One-time Audible upsell after adding/wanting a book. Skipped for self-
+  // identified subscribers and after it has been shown once.
+  const [audiblePromo, setAudiblePromo] = useState(null); // book | null
+  const maybePromoteAudible = (book) => {
+    if (!book || prefs.audible_subscriber || prefs.audible_promo_seen) return;
+    setAudiblePromo(book);
+    savePrefs({ audible_promo_seen: true });
   };
   const [toast, setToastRaw] = useState(null);
   const [banner, setBanner] = useState(null);      // persistent status / error line
@@ -287,6 +297,7 @@ export default function App({ session, onSignOut }) {
 
   // ---- mutations ----
   const saveBook = async (fields, { targetSeriesId } = {}) => {
+    const isNew = !fields.id;
     if (fields.id) {
       const prev = books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).find((b) => b.id === fields.id);
       await db.updateBook(fields.id, withAutoDates(fields, prev));
@@ -300,6 +311,7 @@ export default function App({ session, onSignOut }) {
       await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
     }
     await refreshBooks();
+    if (isNew && !fields.is_series) maybePromoteAudible(fields);
   };
 
   // Bulk import with automatic series grouping: rows may carry a transient
@@ -833,7 +845,7 @@ export default function App({ session, onSignOut }) {
             libbyKey={prefs.libby_key}
             affiliateTag={appSettings.affiliate_tag || null}
             onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
-            onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); }}
+            onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); maybePromoteAudible(fields); }}
             onToast={setToast}
           />
         )}
@@ -850,6 +862,15 @@ export default function App({ session, onSignOut }) {
       )}
 
       {/* ---- dialogs ---- */}
+      {audiblePromo && (
+        <AudiblePromo
+          book={audiblePromo}
+          affiliateTag={appSettings.affiliate_tag || null}
+          onSubscriber={() => { savePrefs({ audible_subscriber: true }); setAudiblePromo(null); }}
+          onClose={() => setAudiblePromo(null)}
+        />
+      )}
+
       {form && (
         <BookForm
           book={form.book}
@@ -908,6 +929,8 @@ export default function App({ session, onSignOut }) {
           onRefreshDone={refreshBooks}
           libbyKey={prefs.libby_key ?? ""}
           onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
+          audibleSubscriber={!!prefs.audible_subscriber}
+          onAudibleSubscriberChange={(v) => savePrefs({ audible_subscriber: v })}
           welcome={onboarding}
           onClose={() => { setSettingsOpen(false); setOnboarding(false); }}
           onSignOut={onSignOut}
