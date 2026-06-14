@@ -133,12 +133,14 @@ export default function App({ session, onSignOut }) {
     });
   };
 
-  // Audible upsell after adding/wanting a book. Shown unless the user has
-  // identified as an Audible subscriber (Settings toggle or the modal's
-  // "Already a subscriber" dismiss).
+  // Audible upsell after adding/wanting a book. Hidden for self-identified
+  // subscribers (Settings toggle or the modal's "Already a subscriber"), and
+  // throttled to at most once per calendar day per device.
   const [audiblePromo, setAudiblePromo] = useState(null); // book | null
   const maybePromoteAudible = (book) => {
     if (!book || prefs.audible_subscriber) return;
+    if (localStorage.getItem("audible_promo_day") === today()) return;
+    localStorage.setItem("audible_promo_day", today());
     setAudiblePromo(book);
   };
   const [toast, setToastRaw] = useState(null);
