@@ -1,6 +1,6 @@
 // Book renderers for the three library views: cover grid, card grid, list row.
 // All three share the same action menu (edit / delete / queue / links).
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Stars, StatusChip, Cover } from "./shared.jsx";
 import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Library, Plus } from "lucide-react";
 import {
@@ -15,6 +15,20 @@ function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueTog
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [onClose]);
+
+  // The menu opens leftward from a button near the card's right edge; on narrow
+  // mobile cards that can push it past the screen edge. Nudge it back on-screen.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = "";
+    const r = el.getBoundingClientRect();
+    const pad = 8;
+    let dx = 0;
+    if (r.left < pad) dx = pad - r.left;
+    else if (r.right > window.innerWidth - pad) dx = window.innerWidth - pad - r.right;
+    if (dx) el.style.transform = `translateX(${dx}px)`;
+  }, []);
 
   const item = "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer";
   const queued = book.queue_position != null;

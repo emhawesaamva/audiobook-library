@@ -133,13 +133,13 @@ export default function App({ session, onSignOut }) {
     });
   };
 
-  // One-time Audible upsell after adding/wanting a book. Skipped for self-
-  // identified subscribers and after it has been shown once.
+  // Audible upsell after adding/wanting a book. Shown unless the user has
+  // identified as an Audible subscriber (Settings toggle or the modal's
+  // "Already a subscriber" dismiss).
   const [audiblePromo, setAudiblePromo] = useState(null); // book | null
   const maybePromoteAudible = (book) => {
-    if (!book || prefs.audible_subscriber || prefs.audible_promo_seen) return;
+    if (!book || prefs.audible_subscriber) return;
     setAudiblePromo(book);
-    savePrefs({ audible_promo_seen: true });
   };
   const [toast, setToastRaw] = useState(null);
   const [banner, setBanner] = useState(null);      // persistent status / error line
@@ -862,15 +862,6 @@ export default function App({ session, onSignOut }) {
       )}
 
       {/* ---- dialogs ---- */}
-      {audiblePromo && (
-        <AudiblePromo
-          book={audiblePromo}
-          affiliateTag={appSettings.affiliate_tag || null}
-          onSubscriber={() => { savePrefs({ audible_subscriber: true }); setAudiblePromo(null); }}
-          onClose={() => setAudiblePromo(null)}
-        />
-      )}
-
       {form && (
         <BookForm
           book={form.book}
@@ -949,6 +940,16 @@ export default function App({ session, onSignOut }) {
             setTimeout(() => setShareCopied(false), 2000);
           }}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+
+      {/* Rendered last so it stacks on top of any open dialog (e.g. the add form). */}
+      {audiblePromo && (
+        <AudiblePromo
+          book={audiblePromo}
+          affiliateTag={appSettings.affiliate_tag || null}
+          onSubscriber={() => { savePrefs({ audible_subscriber: true }); setAudiblePromo(null); }}
+          onClose={() => setAudiblePromo(null)}
         />
       )}
 
