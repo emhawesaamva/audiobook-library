@@ -7,6 +7,7 @@ import { Dialog, Spinner, Stars, btnPrimary, btnSecondary, inputCls, labelCls } 
 import { fetchRecommendations } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
 import { flattenBooks, libbySearchUrl, sameTitle, audibleSearchUrl } from "../lib/bookUtils.js";
+import { BookOpen, Plus } from "lucide-react";
 
 // Shown when the user clicks a Libby badge without a library code configured.
 function LibbySetupDialog({ book, onSave, onClose }) {
@@ -48,7 +49,7 @@ function LibbySetupDialog({ book, onSave, onClose }) {
 
 function LibbyBadge({ status, book, libbyKey }) {
   if (!status) return null;
-  const base = "shrink-0 rounded-md px-2 py-1 text-xs font-bold";
+  const base = "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-bold";
   const href = libbySearchUrl(book, libbyKey);
   if (!status.owned)
     return <span className={`${base} bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500`}>NOT ON LIBBY</span>;
@@ -224,7 +225,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
               ) : (
                 <button
                   onClick={() => setLibbySetup(r)}
-                  className="shrink-0 cursor-pointer rounded-md bg-sky-100 px-2 py-1 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900"
+                  className="shrink-0 cursor-pointer rounded-md bg-sky-100 px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900"
                 >
                   LIBBY ↗
                 </button>
@@ -232,30 +233,28 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
               <a
                 href={audibleSearchUrl(r, affiliateTag)}
                 target="_blank" rel="noopener noreferrer"
-                className="shrink-0 rounded-md bg-accent-100 px-2 py-1 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
+                className="shrink-0 rounded-md bg-accent-100 px-2.5 py-1.5 text-xs font-bold text-accent-700 hover:bg-accent-200 dark:bg-accent-700/20 dark:text-accent-400 dark:hover:bg-accent-700/40"
               >
                 AUDIBLE ↗
               </a>
             </div>
           </div>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{r.why}</p>
-          <div className="mt-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-              {r.similarity && <span>↔ {r.similarity}</span>}
-              <a
-                href={`https://www.goodreads.com/search?q=${encodeURIComponent(`${r.title} ${r.author}`)}`}
-                target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:underline"
-              >
-                Goodreads ↗
-              </a>
-            </div>
+          {r.similarity && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">↔ {r.similarity}</p>}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <a
+              href={`https://www.goodreads.com/search?q=${encodeURIComponent(`${r.title} ${r.author}`)}`}
+              target="_blank" rel="noopener noreferrer" className={btnSecondary}
+            >
+              <BookOpen className="h-4 w-4" /> Goodreads
+            </a>
             {added[r.title] === true ? (
-              <span className="text-xs font-semibold text-emerald-600">✓ Added</span>
+              <span className="text-sm font-semibold text-emerald-600">✓ Added</span>
             ) : added[r.title] === "adding" ? (
-              <Spinner className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <Spinner className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
             ) : (
-              <button onClick={() => handleAdd(r)} className={`${btnSecondary} !py-1 !px-2.5 text-xs`}>
-                + Want to Listen
+              <button onClick={() => handleAdd(r)} className={btnPrimary}>
+                <Plus className="h-4 w-4" /> Want to Listen
               </button>
             )}
           </div>

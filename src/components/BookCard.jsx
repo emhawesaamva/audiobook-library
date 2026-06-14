@@ -218,8 +218,8 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
       <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
         {book.is_series ? "" : fmtDuration(book.duration_minutes) ?? ""}
       </div>
-      <div className="w-20 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
-      <div className="w-14 text-right"><StatusChip status={status} /></div>
+      <div className="hidden w-20 text-right sm:block">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
+      <div className="shrink-0 text-right"><StatusChip status={status} /></div>
       <div className="relative w-7 shrink-0">
         <MenuButton open={menu} setOpen={setMenu} />
         {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}

@@ -21,9 +21,13 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-/* Larger view: the UI is rem-based, so scaling the root scales everything. */
-html.size-large {
-  font-size: 20px; /* 125% of the 16px default */
+/* Larger view: the UI is rem-based, so scaling the root scales everything.
+   Only applied at >=640px — on phones the 125% scale crams fixed-width rows
+   and overflows; mobile stays at the 16px base regardless of the preference. */
+@media (min-width: 640px) {
+  html.size-large {
+    font-size: 20px; /* 125% of the 16px default */
+  }
 }
 
 body {
