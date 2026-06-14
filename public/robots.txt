@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /share/
+
+Sitemap: https://audiolib.io/sitemap.xml

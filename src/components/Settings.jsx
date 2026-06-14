@@ -17,6 +17,7 @@ const AGE_GROUPS = [
 
 export default function Settings({
   profile, profiles, books, session, libbyKey, welcome = false,
+  audibleSubscriber = false, onAudibleSubscriberChange,
   onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks,
   onLibbyKeyChange, onRefreshDone, onClose, onSignOut, onToast,
 }) {
@@ -439,6 +440,23 @@ export default function Settings({
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           The slug from your library's Libby URL (libbyapp.com/library/<strong>code</strong>). With it set, every book's
           “Libby” action searches your library directly; without it, the universal OverDrive search is used.
+        </p>
+      </div>
+
+      {/* ---- Audible ---- */}
+      <div className={section}>
+        <div className={labelCls}>Audible</div>
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={!!audibleSubscriber}
+            onChange={(e) => onAudibleSubscriberChange?.(e.target.checked)}
+            className="accent-accent-500"
+          />
+          I'm an Audible subscriber
+        </label>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Hides “grab it free on Audible” prompts across the site.
         </p>
       </div>
 
