@@ -28,11 +28,12 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
               <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent-500 text-[11px] font-bold text-zinc-900 shadow">
                 {i + 1}
               </span>
-              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 rounded-b-lg bg-black/60 py-1 opacity-0 transition group-hover/q:opacity-100">
-                <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded px-1 text-xs text-white/90 hover:bg-white/20 disabled:opacity-30 cursor-pointer" aria-label="Move earlier"><ChevronLeft className="h-3.5 w-3.5" /></button>
-                <button onClick={() => onStart(b)} className="rounded px-1 text-xs text-white/90 hover:bg-white/20 cursor-pointer" title="Start listening"><Play className="h-3 w-3 fill-current" /></button>
-                <button onClick={() => onRemove(b)} className="rounded px-1 text-xs text-white/90 hover:bg-white/20 cursor-pointer" title="Remove from queue"><X className="h-3.5 w-3.5" /></button>
-                <button onClick={() => move(i, 1)} disabled={i === queue.length - 1} className="rounded px-1 text-xs text-white/90 hover:bg-white/20 disabled:opacity-30 cursor-pointer" aria-label="Move later"><ChevronRight className="h-3.5 w-3.5" /></button>
+              {/* Always visible on touch devices; hover-revealed on devices that support hover. */}
+              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 rounded-b-lg bg-black/60 py-1 transition opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/q:opacity-100">
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-1.5 text-white/90 hover:bg-white/20 disabled:opacity-30 cursor-pointer" aria-label="Move earlier"><ChevronLeft className="h-4 w-4" /></button>
+                <button onClick={() => onStart(b)} className="rounded p-1.5 text-white/90 hover:bg-white/20 cursor-pointer" aria-label="Start listening" title="Start listening"><Play className="h-3.5 w-3.5 fill-current" /></button>
+                <button onClick={() => onRemove(b)} className="rounded p-1.5 text-white/90 hover:bg-white/20 cursor-pointer" aria-label="Remove from queue" title="Remove from queue"><X className="h-4 w-4" /></button>
+                <button onClick={() => move(i, 1)} disabled={i === queue.length - 1} className="rounded p-1.5 text-white/90 hover:bg-white/20 disabled:opacity-30 cursor-pointer" aria-label="Move later"><ChevronRight className="h-4 w-4" /></button>
               </div>
             </div>
             <div className="mt-1 truncate text-xs font-medium">{b.title}</div>
