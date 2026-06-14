@@ -678,7 +678,7 @@ export default function App({ session, onSignOut }) {
         {/* heading + stats */}
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">{activeProfile?.name}'s Library</h1>
+            <h1 className="text-2xl font-bold">{activeProfile?.name}</h1>
             <div className="mt-1 flex gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.read}</strong> finished</span>
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.reading}</strong> listening</span>
@@ -824,7 +824,7 @@ export default function App({ session, onSignOut }) {
               </>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
                   {showRecExplainer && <RecExplainerCard view="cards" />}
                 </div>
@@ -889,6 +889,8 @@ export default function App({ session, onSignOut }) {
           series={activeSeries}
           recommenders={recommenders}
           allTags={allTags}
+          libbyKey={prefs.libby_key}
+          affiliateTag={appSettings.affiliate_tag || null}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
           onSaveSub={async (id, fields) => {

@@ -469,6 +469,11 @@ export default function Settings({
         </div>
       </div>
 
+      {/* Convenience close button at the bottom of the settings page. */}
+      <div className={`${section} flex justify-end`}>
+        <button onClick={onClose} className={btnPrimary}>OK</button>
+      </div>
+
       {triage && (
         <Dialog title="Where to start" onClose={() => setTriage(null)}>
           <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
