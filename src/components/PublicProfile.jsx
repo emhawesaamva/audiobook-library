@@ -25,6 +25,9 @@ const anonClient = createClient(
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+      // Distinct key so this read-only client never shares the main client's
+      // auth storage (avoids the "Multiple GoTrueClient instances" warning).
+      storageKey: "sb-public-anon",
       storage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     },
   }
