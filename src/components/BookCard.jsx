@@ -7,7 +7,7 @@ import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
 
-function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, readOnly, onClose }) {
+export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -85,23 +85,6 @@ function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueTog
   );
 }
 
-function MenuButton({ open, setOpen }) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-      className="rounded-md p-1 text-zinc-500 dark:text-zinc-400 opacity-0 transition group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 data-[open=true]:opacity-100 cursor-pointer"
-      data-open={open}
-      aria-label="Book actions"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
-    </button>
-  );
-}
-
-function LovedCorner() {
-  return <div className="pointer-events-none absolute right-0 top-0 h-0 w-0" style={{ borderWidth: "0 22px 22px 0", borderStyle: "solid", borderColor: "transparent #f59e0b transparent transparent" }} />;
-}
-
 function seriesMeta(book) {
   const n = book.books?.length ?? 0;
   return `${n} book${n === 1 ? "" : "s"}`;
@@ -115,14 +98,17 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
   return (
     // Outer: click + group context, no overflow-hidden so the dropdown can escape.
     <div
-      onClick={book.is_series && onOpen ? onOpen : onEdit}
-      className="group relative cursor-pointer rounded-xl shadow-sm transition hover:shadow-md"
+      onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
+      className="group relative flex cursor-pointer flex-col rounded-xl shadow-sm transition hover:shadow-md"
     >
-      {/* Inner: overflow-hidden clips the loved corner fold to the rounded edge. */}
-      <div className="relative overflow-hidden rounded-xl border border-zinc-300/90 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        {book.loved && <LovedCorner />}
+      {/* Inner: flex-1 so the white panel fills the (grid-stretched) card height;
+          overflow-hidden clips the loved corner fold to the rounded edge. */}
+      <div className="relative flex-1 overflow-hidden rounded-xl border border-zinc-300/90 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex gap-3">
-          <Cover book={book} className="h-24 w-16 shrink-0" />
+          <div className="relative shrink-0">
+            <Cover book={book} className="h-24 w-16" />
+            {book.loved && <Heart className="absolute right-1 top-1 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-semibold leading-snug">
               {book.title}
@@ -148,11 +134,7 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
           </div>
         </div>
       </div>
-      {/* Menu button outside overflow-hidden so the dropdown can overflow the card. */}
-      <div className="absolute right-1 top-1 z-20" onClick={(e) => e.stopPropagation()}>
-        <MenuButton open={menu} setOpen={setMenu} />
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
-      </div>
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }
@@ -164,7 +146,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
   const rating = calcSeriesRating(book);
   return (
     <div
-      onClick={book.is_series && onOpen ? onOpen : onEdit}
+      onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
       className="group relative cursor-pointer"
       title={`${book.title}${book.author ? ` — ${book.author}` : ""}`}
     >
@@ -180,12 +162,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
         </div>
         {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
       </div>
-      <div className="absolute bottom-12 right-1" onClick={(e) => e.stopPropagation()}>
-        <span className="inline-block rounded-md bg-black/55 text-white [&>button]:opacity-100 [&>button]:text-white/90">
-          <MenuButton open={menu} setOpen={setMenu} />
-        </span>
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
-      </div>
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
       <div className="mt-1.5 truncate text-xs font-medium">{book.title}</div>
       <div className="flex items-center justify-between">
         <span className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{book.author}</span>
@@ -202,7 +179,7 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
   const rating = calcSeriesRating(book);
   return (
     <div
-      onClick={book.is_series && onOpen ? onOpen : onEdit}
+      onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
       className="group relative flex cursor-pointer items-center gap-3 border-b border-zinc-100 px-2 py-2 transition hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-900"
     >
       <Cover book={book} className="h-14 w-9 shrink-0" rounded="rounded" />
@@ -218,12 +195,9 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
       <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
         {book.is_series ? "" : fmtDuration(book.duration_minutes) ?? ""}
       </div>
-      <div className="hidden w-20 text-right sm:block">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
+      <div className="shrink-0 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
       <div className="shrink-0 text-right"><StatusChip status={status} /></div>
-      <div className="relative w-7 shrink-0">
-        <MenuButton open={menu} setOpen={setMenu} />
-        {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
-      </div>
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }

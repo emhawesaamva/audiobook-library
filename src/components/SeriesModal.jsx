@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Dialog, Stars, StatusChip, Cover, Spinner, btnSecondary } from "./shared.jsx";
 import BookForm from "./BookForm.jsx";
+import { ActionMenu } from "./BookCard.jsx";
 import { calcSeriesRating, fmtDuration } from "../lib/bookUtils.js";
-import { Pencil, Trash2, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
 
 // Crowd-rating sparkline across the volumes: does the series hold up?
@@ -51,11 +52,11 @@ function SeriesQualityCurve({ books }) {
   );
 }
 
-export default function SeriesModal({ series, recommenders = [], allTags = [], onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
+export default function SeriesModal({ series, recommenders = [], allTags = [], libbyKey, affiliateTag, onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
-  const [deleting, setDeleting] = useState(null); // sub-book id pending confirm
+  const [openMenu, setOpenMenu] = useState(null); // sub-book id whose menu is open
   const subBooks = series.books ?? [];
   const rating = calcSeriesRating(series);
 
@@ -134,7 +135,11 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], o
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
             {subBooks.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 py-2">
+              <div
+                key={b.id}
+                onClick={() => setOpenMenu(b.id)}
+                className="relative flex cursor-pointer items-center gap-3 rounded-md px-1 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+              >
                 <span className="w-7 shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400">
                   {b.series_position ? `#${b.series_position}` : ""}
                 </span>
@@ -145,22 +150,17 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], o
                     {b.narrator ? b.narrator : b.author}{b.duration_minutes ? ` · ${fmtDuration(b.duration_minutes)}` : ""}{b.year ? ` · ${b.year}` : ""}
                   </div>
                 </div>
-                {deleting === b.id ? (
-                  <span className="flex items-center gap-1.5">
-                    <button onClick={async () => { setDeleting(null); await onDeleteSub(b.id); onToast?.({ text: `Deleted "${b.title}"` }); }} className="rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white cursor-pointer">DELETE</button>
-                    <button onClick={() => setDeleting(null)} className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 cursor-pointer">Cancel</button>
-                  </span>
-                ) : (
-                  <>
-                    {Number(b.rating) > 0 && <Stars rating={b.rating} size="text-xs" />}
-                    <StatusChip status={b.status} />
-                    <button onClick={() => setSubForm(b)} className="rounded p-1 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 cursor-pointer" aria-label="Edit">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => setDeleting(b.id)} className="rounded p-1 text-zinc-500 dark:text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 cursor-pointer" aria-label="Delete">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </>
+                {Number(b.rating) > 0 && <Stars rating={b.rating} size="text-xs" />}
+                <StatusChip status={b.status} />
+                {openMenu === b.id && (
+                  <ActionMenu
+                    book={b}
+                    libbyKey={libbyKey}
+                    affiliateTag={affiliateTag}
+                    onEdit={() => setSubForm(b)}
+                    onDelete={async () => { await onDeleteSub(b.id); onToast?.({ text: `Deleted "${b.title}"` }); }}
+                    onClose={() => setOpenMenu(null)}
+                  />
                 )}
               </div>
             ))}
