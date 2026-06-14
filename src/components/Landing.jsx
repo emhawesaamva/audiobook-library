@@ -88,7 +88,7 @@ const SHELF = [
   { title: "Wool", cover_url: "https://m.media-amazon.com/images/I/51wvy7jratL._SL500_.jpg", chip: "wanttoread" },
   { title: "The Hunger Games", cover_url: "https://m.media-amazon.com/images/I/51vOc7NtICL._SL500_.jpg", chip: "read" },
   { title: "Harry Potter and the Sorcerer's Stone", cover_url: "https://m.media-amazon.com/images/I/51xJbFMRsxL._SL500_.jpg", chip: null },
-  { title: "The Fellowship of the Ring", cover_url: "https://m.media-amazon.com/images/I/51eVNlqfveL._SL500_.jpg", chip: "read" },
+  { title: "Dungeon Crawler Carl", cover_url: "https://m.media-amazon.com/images/I/51HIZdnqASL._SL500_.jpg", chip: "read" },
 ];
 
 // A static, decorative "peek at the app" built from real cover art + design tokens.
