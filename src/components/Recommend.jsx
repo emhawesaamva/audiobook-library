@@ -157,7 +157,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
         genre: r.genre || "Science Fiction",
         subgenre: r.subgenre || "",
         status: "wanttoread",
-        recommended_by: "Claude",
+        recommended_by: "AudioLib",
         year: r.year ? Number(r.year) : null,
         ...enriched,
         title: enriched.title || r.title, // prefer canonical metadata title

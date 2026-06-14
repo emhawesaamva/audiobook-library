@@ -15,7 +15,7 @@ import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import AudiblePromo from "./components/AudiblePromo.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -281,7 +281,7 @@ export default function App({ session, onSignOut }) {
             profile_id: profileId,
             author: rec.author,
             genre: rec.genre || "Science Fiction", subgenre: rec.subgenre || "",
-            status: "recommended", recommended_by: "Claude",
+            status: "recommended", recommended_by: "AudioLib",
             ...enriched, title: enriched.title || rec.title,
           });
           current = [...current, row];
@@ -559,6 +559,10 @@ export default function App({ session, onSignOut }) {
     onQueueToggle: !b.is_series ? () => queueToggle(b) : undefined,
   });
 
+  // A fresh library holds only the two auto-recommended starter titles — show
+  // an explainer card alongside them until the user adds a book of their own.
+  const showRecExplainer = books.length === 2 && books.every((b) => getStatus(b) === "recommended");
+
   const tabBtn = (t, label) => (
     <button
       key={t}
@@ -806,6 +810,7 @@ export default function App({ session, onSignOut }) {
               <>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
                   {page.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
+                  {showRecExplainer && <RecExplainerCard view="covers" />}
                 </div>
                 <div ref={sentinelRef} />
               </>
@@ -813,6 +818,7 @@ export default function App({ session, onSignOut }) {
               <>
                 <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                   {page.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
+                  {showRecExplainer && <RecExplainerCard view="list" />}
                 </div>
                 <div ref={sentinelRef} />
               </>
@@ -820,6 +826,7 @@ export default function App({ session, onSignOut }) {
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
+                  {showRecExplainer && <RecExplainerCard view="cards" />}
                 </div>
                 <div ref={sentinelRef} />
               </>
@@ -956,6 +963,35 @@ export default function App({ session, onSignOut }) {
       )}
 
       <Toast toast={toast} />
+    </div>
+  );
+}
+
+// Shown only when a library holds nothing but its two auto-recommended starter
+// titles, explaining where those came from. Adapts to the active library view.
+function RecExplainerCard({ view }) {
+  const accent = "border-dashed border-accent-300 bg-accent-50/60 text-zinc-600 dark:border-accent-700/40 dark:bg-accent-700/5 dark:text-zinc-300";
+  if (view === "list") {
+    return (
+      <div className={`flex items-center gap-2.5 border-t px-3 py-3 text-sm ${accent}`}>
+        <Sparkles className="h-4 w-4 shrink-0 text-accent-600" />
+        <span>These two popular titles were recommended for you by AudioLib to get you started — add a book of your own and your recommendations start matching your taste.</span>
+      </div>
+    );
+  }
+  if (view === "covers") {
+    return (
+      <div className={`flex aspect-[1/1.5] flex-col items-center justify-center rounded-lg border p-3 text-center ${accent}`}>
+        <Sparkles className="mb-2 h-5 w-5 text-accent-600" />
+        <p className="text-[11px] font-medium leading-snug">Two popular titles recommended for you by AudioLib to get you started</p>
+      </div>
+    );
+  }
+  // cards
+  return (
+    <div className={`flex items-center gap-3 rounded-xl border p-4 ${accent}`}>
+      <Sparkles className="h-6 w-6 shrink-0 text-accent-600" />
+      <p className="text-sm leading-snug">These two popular titles were recommended for you by AudioLib to get you started. Add a book of your own and your recommendations start matching your taste.</p>
     </div>
   );
 }
