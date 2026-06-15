@@ -1,7 +1,7 @@
 // Mobile usability audit (iPhone portrait 390x844) for the audiobook-library app.
 // Run: node scripts/ui-test/mobile-audit.mjs
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -13,6 +13,41 @@ const BASE = process.env.UI_TEST_BASE || 'http://localhost:5173';
 const EMAIL = 'mobile-test@library-integration.test';
 const PASSWORD = 'mobile-test-1234';
 const T = 30000;
+
+// Supabase creds from .env, so the audit can self-provision its test account.
+const env = Object.fromEntries(
+  (() => { try { return readFileSync(path.resolve(process.cwd(), '.env'), 'utf8'); } catch { return ''; } })()
+    .split('\n').filter((l) => l.includes('=') && !l.startsWith('#'))
+    .map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; })
+);
+const SUPA_URL = env.VITE_SUPABASE_URL;
+const SECRET = env.SUPABASE_SECRET_KEY;
+
+// Create the test account via the Supabase admin API if it doesn't exist yet.
+// The on_auth_user_created trigger then creates the matching accounts row, so a
+// first sign-in lands on the "Create your first library" / onboarding flow.
+async function ensureTestAccount() {
+  if (!SUPA_URL || !SECRET) {
+    console.log('  [setup] no SUPABASE_SECRET_KEY in .env — assuming the test account already exists');
+    return;
+  }
+  const h = { apikey: SECRET, Authorization: `Bearer ${SECRET}` };
+  try {
+    const existing = await fetch(`${SUPA_URL}/rest/v1/accounts?email=eq.${encodeURIComponent(EMAIL)}&select=id`, { headers: h }).then((r) => r.json());
+    if (Array.isArray(existing) && existing.length) { console.log(`  [setup] test account ${EMAIL} already exists`); return; }
+  } catch { /* fall through and try to create */ }
+  const r = await fetch(`${SUPA_URL}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: { ...h, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: EMAIL, password: PASSWORD, email_confirm: true }),
+  });
+  if (r.ok) {
+    console.log(`  [setup] created test account ${EMAIL}`);
+    await new Promise((res) => setTimeout(res, 1500)); // let the signup trigger run
+  } else {
+    console.log(`  [setup] could not create test account: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  }
+}
 
 const results = [];
 const findings = []; // { area, note }
@@ -179,9 +214,14 @@ async function tapTargetScan(label) {
   return small;
 }
 
+// ---------- 0. provision test account ----------
+console.log('\n=== 00-setup ===');
+await ensureTestAccount();
+
 // ---------- 1. login ----------
 await step('01-login-page', async () => {
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  // Signed-out visitors get the marketing landing page; /signin deep-links to the form.
+  await page.goto(BASE + '/signin', { waitUntil: 'domcontentloaded' });
   await page.locator('input[type="email"]').waitFor({ state: 'visible' });
   await shot('01-login');
   await overflowCheck('login');
@@ -192,7 +232,7 @@ await step('02-sign-in', async () => {
   await page.locator('input[type="password"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   const firstLib = page.getByText('Create your first library');
-  const addBtn = page.getByRole('button', { name: '+ Add', exact: true });
+  const addBtn = page.getByRole('button', { name: 'Add', exact: true }).first();
   await Promise.race([
     firstLib.waitFor({ state: 'visible', timeout: 30000 }),
     addBtn.waitFor({ state: 'visible', timeout: 30000 }),
@@ -203,49 +243,41 @@ await step('02-sign-in', async () => {
   }
 });
 
-// ---------- 2. create library + onboarding settings dialog ----------
+// ---------- 2. create library + onboarding wizard ----------
 const fresh = await page.getByText('Create your first library').isVisible().catch(() => false);
 if (fresh) {
   await step('03-create-library', async () => {
     await page.getByPlaceholder('e.g. My Library').fill('Phone Test');
     await shot('03-create-library-form');
     await page.getByRole('button', { name: 'Create library' }).click();
-    // onboarding settings dialog opens automatically
-    await page.locator('button[aria-label="Close"]').first().waitFor({ state: 'visible', timeout: 20000 });
-    await page.waitForTimeout(700);
-    await shot('04-onboarding-settings-top');
-    await dialogMetrics('onboarding-dialog');
-    // can we scroll the dialog?
-    const scrolled = await page.evaluate(() => {
-      const panels = [...document.querySelectorAll('div')].filter((d) => {
-        const cs = getComputedStyle(d);
-        return /(auto|scroll)/.test(cs.overflowY) && d.scrollHeight > d.clientHeight + 1 && d.getBoundingClientRect().width > 200;
-      });
-      const p = panels[panels.length - 1];
-      if (!p) return null;
-      p.scrollTop = p.scrollHeight;
-      return { from: 0, to: p.scrollTop, max: p.scrollHeight - p.clientHeight };
-    });
-    if (scrolled) {
-      note('onboarding-dialog', `dialog scrolls: reached scrollTop=${scrolled.to} of max=${scrolled.max}`);
-      await page.waitForTimeout(400);
-      await shot('04-onboarding-settings-bottom');
-      await page.evaluate(() => {
-        const panels = [...document.querySelectorAll('div')].filter((d) => /(auto|scroll)/.test(getComputedStyle(d).overflowY));
-        panels.forEach((p) => (p.scrollTop = 0));
-      });
-    } else {
-      note('onboarding-dialog', 'no scrollable panel found inside dialog (content may fit or be clipped)');
-    }
-    await tapTargetScan('onboarding-dialog');
-    await page.locator('button[aria-label="Close"]').first().click();
+
+    // A 3-step onboarding wizard opens (name -> who's it for -> bring in books).
+    await page.getByText('Name your library').waitFor({ state: 'visible', timeout: 20000 });
     await page.waitForTimeout(500);
+    await shot('04-wizard-1-name');
+    await dialogMetrics('wizard');
+    await tapTargetScan('wizard');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await page.getByText("Who's it for?").waitFor({ state: 'visible' });
+    await page.waitForTimeout(400);
+    await shot('04-wizard-2-age');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await page.getByText('Bring in your books').waitFor({ state: 'visible' });
+    await page.waitForTimeout(400);
+    await shot('04-wizard-3-import');
+    await overflowCheck('wizard-import');
+    await tapTargetScan('wizard-import');
+
+    await page.getByRole('button', { name: /Skip & explore|Finish/ }).click();
+    await page.waitForTimeout(600);
   });
 }
 
 // ---------- 3. main shell ----------
 await step('05-main-shell', async () => {
-  await page.getByRole('button', { name: '+ Add', exact: true }).waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Add', exact: true }).first().waitFor({ state: 'visible' });
   await page.waitForTimeout(600);
   await shot('05-main-shell');
   await shot('05-main-shell-full', { fullPage: true });
@@ -253,7 +285,7 @@ await step('05-main-shell', async () => {
   await tapTargetScan('header-toolbar');
   // header geometry: does the toolbar wrap?
   const header = await page.evaluate(() => {
-    const btns = ['+ Add', 'Library', 'Stats', 'Recommend'];
+    const btns = ['Add', 'Library', 'Stats', 'Recommend'];
     const found = {};
     [...document.querySelectorAll('button')].forEach((b) => {
       const t = b.textContent.trim();
@@ -266,7 +298,7 @@ await step('05-main-shell', async () => {
 
 // ---------- 4. Add dialog ----------
 await step('06-add-dialog-search', async () => {
-  await page.getByRole('button', { name: '+ Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
   const search = page.getByPlaceholder('Title, author, or series…');
   await search.waitFor({ state: 'visible' });
   await dialogMetrics('add-dialog-empty');
@@ -315,12 +347,21 @@ await step('07-add-form', async () => {
   });
   if (stars) note('tap:star-rating', `star spans ${stars.w}x${stars.h}px each -> half-star tap target ~${Math.round(stars.w / 2)}x${stars.h}px`);
   await shot('07-add-form-status-read');
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).last().click();
   await page.waitForFunction(() => {
     const l = [...document.querySelectorAll('label')].find((x) => x.textContent.trim().startsWith('Title'));
     const i = l && (l.querySelector('input') || l.parentElement.querySelector('input'));
     return i && i.value === '';
   }, { timeout: 20000 });
+  // Adding a book fires the one-time "grab it free on Audible" promo, which overlays
+  // the app. Dismiss via "Already a subscriber" — this also permanently silences it
+  // for the test account, so it won't block later steps or future runs.
+  const promo = page.getByRole('button', { name: 'Already a subscriber' });
+  if (await promo.isVisible().catch(() => false)) {
+    note('add-form', 'Audible promo appeared after add; dismissed via "Already a subscriber"');
+    await promo.click();
+    await page.waitForTimeout(400);
+  }
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForTimeout(600);
 });
@@ -331,29 +372,19 @@ await step('08-card-grid', async () => {
   await page.waitForTimeout(1200); // covers + possible auto-recommend banner
   await shot('08-library-cards');
   await overflowCheck('cards-view');
-  // is the card actions button visible without hover (touch device!)?
-  const act = await page.evaluate(() => {
-    const b = document.querySelector('button[aria-label="Book actions"]');
-    if (!b) return null;
-    const cs = getComputedStyle(b);
-    const r = b.getBoundingClientRect();
-    return { opacity: cs.opacity, visibility: cs.visibility, display: cs.display, w: Math.round(r.width), h: Math.round(r.height) };
-  });
-  if (act) {
-    note('cards-view', `"Book actions" (⋮) button without hover: opacity=${act.opacity} visibility=${act.visibility} size=${act.w}x${act.h}px${Number(act.opacity) === 0 ? ' — INVISIBLE on touch (hover-revealed)' : ''}`);
-  }
+  // The three-dots button was removed — tapping a card now opens its action menu.
   await tapTargetScan('cards-view');
 });
 
 await step('09-covers-view', async () => {
-  await page.getByRole('button', { name: '▦' }).click();
+  await page.locator('button[title="covers"]').click();
   await page.waitForTimeout(900);
   await shot('09-library-covers');
   await overflowCheck('covers-view');
 });
 
 await step('10-list-view', async () => {
-  await page.getByRole('button', { name: '☰' }).click();
+  await page.locator('button[title="list"]').click();
   await page.waitForTimeout(900);
   await shot('10-library-list');
   await overflowCheck('list-view');
@@ -368,14 +399,12 @@ await step('10-list-view', async () => {
   await tapTargetScan('list-view');
 });
 
-// ---------- 6. card ⋮ menu ----------
+// ---------- 6. card action menu (opened by tapping the card) ----------
 await step('11-card-menu', async () => {
-  await page.getByRole('button', { name: '▤' }).click(); // back to cards
+  await page.locator('button[title="cards"]').click(); // back to cards
   await page.waitForTimeout(700);
-  const menuBtn = page.locator('button[aria-label="Book actions"]').first();
-  const mb = await menuBtn.boundingBox();
-  if (mb) note('tap:card-menu', `⋮ "Book actions" button is ${Math.round(mb.width)}x${Math.round(mb.height)}px`);
-  await menuBtn.click();
+  // Tapping a (non-series) book card opens its action menu — the three-dots button is gone.
+  await page.getByText('Project Hail Mary').first().click();
   await page.waitForTimeout(500);
   await shot('11-card-menu-open');
   // does the dropdown fit?
@@ -393,7 +422,7 @@ await step('11-card-menu', async () => {
   if (dd) note('card-menu', `dropdown rect L${dd.left} R${dd.right} T${dd.top} B${dd.bottom} (vw=${dd.vw}) fitsOnScreen=${dd.fits}`);
   await tapTargetScan('card-menu');
   // add to Up Next so we can measure queue arrows
-  const upNext = page.getByRole('button', { name: /Add to Up Next/ });
+  const upNext = page.getByRole('button', { name: /Add to Up Next/ }).last();
   if (await upNext.isVisible().catch(() => false)) {
     await upNext.click();
     await page.waitForTimeout(900);
@@ -442,8 +471,8 @@ await step('14-recommend', async () => {
 
 // ---------- 9. settings ----------
 await step('16-settings', async () => {
-  await page.locator('button[title="Settings"]').click();
-  await page.getByText('Library name').waitFor({ state: 'visible' });
+  await page.locator('button[aria-label="Settings"]').click();
+  await page.getByText('Rename this library').waitFor({ state: 'visible' });
   await page.waitForTimeout(600);
   await shot('16-settings-top');
   await dialogMetrics('settings-dialog');
