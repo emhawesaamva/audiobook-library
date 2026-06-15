@@ -183,6 +183,9 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
                 </p>
               )}
               <ImportGuides />
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                No rush — you can import a file or paste a list anytime later from the <strong>⚙ Settings</strong> menu in the top bar.
+              </p>
             </>
           )}
 
