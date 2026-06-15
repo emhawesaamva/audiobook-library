@@ -14,6 +14,7 @@ import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import AudiblePromo from "./components/AudiblePromo.jsx";
+import OnboardingWizard from "./components/OnboardingWizard.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
 import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
@@ -914,7 +915,25 @@ export default function App({ session, onSignOut }) {
         />
       )}
 
-      {settingsOpen && activeProfile && (
+      {onboarding && activeProfile && (
+        <OnboardingWizard
+          profile={activeProfile}
+          books={books}
+          onRename={async (name) => {
+            const p = await db.updateProfile(activeId, { name });
+            setProfiles(profiles.map((x) => (x.id === activeId ? p : x)));
+          }}
+          onAgeGroupChange={async (age_group) => {
+            const p = await db.updateProfile(activeId, { age_group });
+            setProfiles(profiles.map((x) => (x.id === activeId ? p : x)));
+          }}
+          onImportBooks={importBooks}
+          onToast={setToast}
+          onClose={() => { setOnboarding(false); setSettingsOpen(false); refreshBooks(); }}
+        />
+      )}
+
+      {settingsOpen && !onboarding && activeProfile && (
         <Settings
           profile={activeProfile}
           profiles={profiles}
