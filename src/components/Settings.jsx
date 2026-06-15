@@ -3,7 +3,7 @@
 // which library the panel configures (it also switches the active library).
 import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow, StatusChip } from "./shared.jsx";
-import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, parseAudibleJSON, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
+import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, parseAudibleJSON, parseAudibleCSV, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
 import { identifyBookList } from "../lib/ai.js";
 import { Upload, Download, ClipboardList, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
@@ -204,13 +204,14 @@ export default function Settings({
       : format === "libby" ? parseLibbyCSV(text)
       : format === "libby-json" ? parseLibbyJSON(text)
       : format === "audible" ? parseAudibleJSON(text)
-      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV, Libby export, or Audible Library Extractor JSON"] };
+      : format === "audible-csv" ? parseAudibleCSV(text)
+      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV, Libby export, or Audible Library Extractor export"] };
     const { books: parsed, errors, note } = parsedResult;
     if (!parsed.length) {
       onToast?.({ text: errors[0] ?? "No books found in file", isError: true });
       return;
     }
-    const sourceLabel = format === "goodreads" ? "Goodreads" : format === "audible" ? "Audible" : "Libby";
+    const sourceLabel = format === "goodreads" ? "Goodreads" : (format === "audible" || format === "audible-csv") ? "Audible" : "Libby";
     await importParsed(parsed, sourceLabel, { note, skippedRows: errors.length });
   };
 
@@ -303,8 +304,8 @@ export default function Settings({
               Enrich imports with covers, narrators & durations (slower)
             </label>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Accepts an Audible Library Extractor JSON, Goodreads CSV, or Libby timeline export (CSV or JSON) — format is detected
-              automatically. Imports are additive, duplicates are skipped, and series are grouped together.
+              Accepts an Audible Library Extractor export (CSV or JSON), a Goodreads CSV, or a Libby timeline export (CSV or JSON) —
+              format is detected automatically. Imports are additive, duplicates are skipped, and series are grouped together.
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {[
@@ -330,39 +331,55 @@ export default function Settings({
                 <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
                   <li>Install the free <strong>Audible Library Extractor</strong> extension for Chrome or Edge.</li>
                   <li>Log in to audible.com and navigate to your library.</li>
-                  <li>Click the extension icon — it will scan your library automatically.</li>
-                  <li>When finished, click <strong>Save data</strong> to download a <code>.json</code> file.</li>
+                  <li>Click the <strong>Audible Library Extractor</strong> button below the search input.</li>
+                  <li>Choose what to extract, then click the blue button to start.</li>
+                  <li>When finished, open the gallery menu (top right) → <strong>Extension tools → Export CSV → Raw data</strong>.</li>
                   <li>Return here, click Import, and select that file.</li>
                 </ol>
                 <a
-                  href="https://chrome.google.com/webstore/detail/audible-library-extractor/deifcolkciolkllaikijldnjeloeaall"
+                  href="https://joonaspaakko.gitbook.io/audible-library-extractor/gallery/csv-export"
                   target="_blank" rel="noopener noreferrer"
                   className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
                 >
-                  Get Audible Library Extractor →
+                  Documentation →
                 </a>
               </div>
             )}
             {guideOpen === "goodreads" && (
               <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
                 <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
-                  <li>Log in to <strong>goodreads.com</strong>.</li>
+                  <li>Log in to <strong>goodreads.com</strong> on a desktop browser.</li>
                   <li>Go to <strong>My Books</strong>, then select <strong>Import and Export</strong> from the left sidebar.</li>
-                  <li>Click <strong>Export Library</strong> — a <code>.csv</code> file will download.</li>
+                  <li>Click <strong>Export Library</strong> — a CSV file will download.</li>
                   <li>Return here, click Import, and select that file.</li>
                 </ol>
                 <p className="mt-2 text-zinc-500 dark:text-zinc-400">Your ratings, shelves (read/reading/want-to-read), and read dates are all imported.</p>
+                <a
+                  href="https://help.goodreads.com/s/article/How-do-I-import-or-export-my-books-1553870934590"
+                  target="_blank" rel="noopener noreferrer"
+                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
+                >
+                  Documentation →
+                </a>
               </div>
             )}
             {guideOpen === "libby" && (
               <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
                 <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
                   <li>Open the <strong>Libby app</strong> or visit <strong>libbyapp.com</strong>.</li>
-                  <li>Go to your shelf, then tap the <strong>Activity</strong> (timeline) tab.</li>
-                  <li>Tap the share/export icon and choose <strong>Export your data</strong> to download a <code>.json</code> file. (A CSV export is also available from the same menu.)</li>
+                  <li>Tap <strong>Shelf</strong>, then tap <strong>Timeline</strong> at the top of the screen.</li>
+                  <li>Tap <strong>Actions → Export Timeline</strong>.</li>
+                  <li>Choose <strong>Spreadsheet</strong> to download a CSV file.</li>
                   <li>Return here, click Import, and select that file.</li>
                 </ol>
                 <p className="mt-2 text-zinc-500 dark:text-zinc-400">Only audiobook activity is imported — ebooks and magazines are skipped automatically.</p>
+                <a
+                  href="https://help.libbyapp.com/en-us/6207.htm"
+                  target="_blank" rel="noopener noreferrer"
+                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
+                >
+                  Documentation →
+                </a>
               </div>
             )}
           </>
