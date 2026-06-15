@@ -223,6 +223,70 @@ export function parseAudibleJSON(text) {
   return { books, errors, note };
 }
 
+// ---- Audible Library Extractor "Raw data" CSV import ----
+// Columns (verbatim, order varies — parsed by name) produced by the extension's
+// CSV export "Raw data" format: Added, Title, Title Short, Series, Book Numbers,
+// Blurb, Authors, Narrators, Tags, Categories, Parent Category, Child Category,
+// Length, Progress, Release Date, Publishers, My Rating, Rating, Ratings,
+// Favorite, Format, Language, ..., ASIN, ISBN10, ISBN13, Cover, ...
+// Distinguished from a Goodreads CSV (which also has "My Rating") by "Narrators".
+export function parseAudibleCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { books: [], errors: ["Empty file"] };
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (name) => header.indexOf(name.toLowerCase());
+  const iTitle = col("Title"), iTitleShort = col("Title Short");
+  if (iTitle === -1 && iTitleShort === -1)
+    return { books: [], errors: ["Not an Audible Library Extractor CSV: missing Title column"] };
+
+  const iSeries = col("Series"), iBookNums = col("Book Numbers"),
+    iAuthors = col("Authors"), iNarrators = col("Narrators"),
+    iCategories = col("Categories"), iParentCat = col("Parent Category"),
+    iLength = col("Length"), iProgress = col("Progress"), iRelease = col("Release Date"),
+    iMyRating = col("My Rating"), iRating = col("Rating"), iAsin = col("ASIN"),
+    iIsbn13 = col("ISBN13"), iIsbn10 = col("ISBN10"), iCover = col("Cover"), iFav = col("Favorite");
+
+  const cell = (r, i) => (i === -1 ? "" : (r[i] ?? "").trim());
+
+  const books = [];
+  const errors = [];
+  for (const r of rows.slice(1)) {
+    const title = cell(r, iTitleShort) || cell(r, iTitle);
+    if (!title) continue;
+    try {
+      const progress = Number(cell(r, iProgress).replace(/[^0-9.]/g, "")) || 0;
+      const status = progress >= 100 ? "read" : progress > 0 ? "reading" : "wanttoread";
+      const seriesRaw = cell(r, iSeries);
+      const series_title = seriesRaw ? (seriesRaw.match(/^(.*?)\s*\(book/i)?.[1] ?? seriesRaw).trim() || null : null;
+      const series_position = parseFloat(cell(r, iBookNums)); // "1" or "1, 2" -> 1; "∞" -> NaN
+      const release = cell(r, iRelease);
+      const fav = cell(r, iFav);
+
+      books.push({
+        title,
+        author: cell(r, iAuthors) || null,
+        narrator: cell(r, iNarrators) || null,
+        duration_minutes: parseAudibleLength(cell(r, iLength)),
+        status,
+        series_title,
+        series_position: isNaN(series_position) ? null : series_position,
+        cover_url: cell(r, iCover) || null,
+        year: /^\d{4}/.test(release) ? Number(release.slice(0, 4)) : null,
+        genre: cell(r, iParentCat) || cell(r, iCategories).split(">")[0].trim() || null,
+        goodreads_rating: Number(cell(r, iRating)) > 0 ? Number(cell(r, iRating)) : null,
+        rating: Number(cell(r, iMyRating)) > 0 ? Number(cell(r, iMyRating)) : null,
+        asin: cell(r, iAsin) || null,
+        isbn: cell(r, iIsbn13) || cell(r, iIsbn10) || null,
+        loved: /^(true|yes|1|x|✓)$/i.test(fav),
+        progress_percent: progress > 0 && progress < 100 ? progress : null,
+      });
+    } catch (e) {
+      errors.push(`"${title}": ${e.message}`);
+    }
+  }
+  return { books, errors, note: null };
+}
+
 // Sniff which importer fits a file's content.
 export function detectImportFormat(text, filename = "") {
   if (filename.endsWith(".json") || text.trimStart().startsWith("{")) {
@@ -234,6 +298,9 @@ export function detectImportFormat(text, filename = "") {
     return "libby-json";
   }
   const header = (parseCSV(text.slice(0, 2000))[0] ?? []).map((h) => h.trim().toLowerCase());
+  // Audible Library Extractor "Raw data" CSV also has "my rating", so check its
+  // distinctive "narrators" column before the Goodreads check below.
+  if (header.includes("narrators") && header.includes("title")) return "audible-csv";
   if (header.includes("exclusive shelf") || (header.includes("my rating") && header.includes("title"))) return "goodreads";
   if (header.includes("activity") && header.includes("timestamp")) return "libby";
   return null;
