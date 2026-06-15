@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow, StatusChip } from "./shared.jsx";
 import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, parseAudibleJSON, parseAudibleCSV, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
 import { identifyBookList } from "../lib/ai.js";
+import ImportGuides from "./ImportGuides.jsx";
 import { Upload, Download, ClipboardList, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
 import { updateBook } from "../lib/db.js";
@@ -27,7 +28,6 @@ export default function Settings({
 
   // Keep the rename field in sync when a different library is selected.
   useEffect(() => { setName(profile.name); setConfirming(false); }, [profile.id, profile.name]);
-  const [guideOpen, setGuideOpen] = useState(null); // "audible" | "goodreads" | "libby" | null
   const [importing, setImporting] = useState(null); // {total, done} during import
   const [refreshing, setRefreshing] = useState(null); // {total, done, filled} during metadata refresh
   const refreshAbort = useRef(false);
@@ -307,81 +307,7 @@ export default function Settings({
               Accepts an Audible Library Extractor export (CSV or JSON), a Goodreads CSV, or a Libby timeline export (CSV or JSON) —
               format is detected automatically. Imports are additive, duplicates are skipped, and series are grouped together.
             </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { id: "audible", label: "Audible" },
-                { id: "goodreads", label: "Goodreads" },
-                { id: "libby", label: "Libby" },
-              ].map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setGuideOpen(guideOpen === g.id ? null : g.id)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-                    guideOpen === g.id
-                      ? "border-accent-500 bg-accent-50 text-accent-700 dark:bg-accent-700/15 dark:text-accent-400"
-                      : "border-zinc-300 text-zinc-500 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
-                  }`}
-                >
-                  How to export from {g.label}
-                </button>
-              ))}
-            </div>
-            {guideOpen === "audible" && (
-              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
-                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
-                  <li>Install the free <strong>Audible Library Extractor</strong> extension for Chrome or Edge.</li>
-                  <li>Log in to audible.com and navigate to your library.</li>
-                  <li>Click the <strong>Audible Library Extractor</strong> button below the search input.</li>
-                  <li>Choose what to extract, then click the blue button to start.</li>
-                  <li>When finished, open the gallery menu (top right) → <strong>Extension tools → Export CSV → Raw data</strong>.</li>
-                  <li>Return here, click Import, and select that file.</li>
-                </ol>
-                <a
-                  href="https://joonaspaakko.gitbook.io/audible-library-extractor/gallery/csv-export"
-                  target="_blank" rel="noopener noreferrer"
-                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
-                >
-                  Documentation →
-                </a>
-              </div>
-            )}
-            {guideOpen === "goodreads" && (
-              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
-                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
-                  <li>Log in to <strong>goodreads.com</strong> on a desktop browser.</li>
-                  <li>Go to <strong>My Books</strong>, then select <strong>Import and Export</strong> from the left sidebar.</li>
-                  <li>Click <strong>Export Library</strong> — a CSV file will download.</li>
-                  <li>Return here, click Import, and select that file.</li>
-                </ol>
-                <p className="mt-2 text-zinc-500 dark:text-zinc-400">Your ratings, shelves (read/reading/want-to-read), and read dates are all imported.</p>
-                <a
-                  href="https://help.goodreads.com/s/article/How-do-I-import-or-export-my-books-1553870934590"
-                  target="_blank" rel="noopener noreferrer"
-                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
-                >
-                  Documentation →
-                </a>
-              </div>
-            )}
-            {guideOpen === "libby" && (
-              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-800/50">
-                <ol className="list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
-                  <li>Open the <strong>Libby app</strong> or visit <strong>libbyapp.com</strong>.</li>
-                  <li>Tap <strong>Shelf</strong>, then tap <strong>Timeline</strong> at the top of the screen.</li>
-                  <li>Tap <strong>Actions → Export Timeline</strong>.</li>
-                  <li>Choose <strong>Spreadsheet</strong> to download a CSV file.</li>
-                  <li>Return here, click Import, and select that file.</li>
-                </ol>
-                <p className="mt-2 text-zinc-500 dark:text-zinc-400">Only audiobook activity is imported — ebooks and magazines are skipped automatically.</p>
-                <a
-                  href="https://help.libbyapp.com/en-us/6207.htm"
-                  target="_blank" rel="noopener noreferrer"
-                  className="mt-2 block text-accent-600 hover:underline dark:text-accent-400"
-                >
-                  Documentation →
-                </a>
-              </div>
-            )}
+            <ImportGuides />
           </>
         )}
       </div>
