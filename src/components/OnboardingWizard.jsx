@@ -4,6 +4,7 @@
 import { useState, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, inputCls, labelCls, Spinner } from "./shared.jsx";
 import ImportGuides from "./ImportGuides.jsx";
+import PasteImport from "./PasteImport.jsx";
 import { runImport } from "../lib/importBooks.js";
 import {
   detectImportFormat, parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON,
@@ -45,6 +46,24 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
     setSaving(false);
   };
 
+  const doImport = async (parsed, sourceLabel, note = null) => {
+    if (!parsed.length) return;
+    try {
+      const r = await runImport(parsed, { books, enrich, onImportBooks, onProgress: setImporting });
+      setImporting(null);
+      if (r.allExisting) { onToast?.({ text: `All ${sourceLabel} books are already in this library` }); return; }
+      setImportedCount((n) => n + r.imported);
+      onToast?.({
+        text: `Imported ${r.imported} books from ${sourceLabel}`
+          + (r.seriesCount ? `, organized ${r.seriesCount} series` : "")
+          + (note ? ` (${note})` : ""),
+      });
+    } catch (err) {
+      setImporting(null);
+      onToast?.({ text: `Import failed: ${err.message}`, isError: true });
+    }
+  };
+
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -63,20 +82,7 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
       return;
     }
     const sourceLabel = format === "goodreads" ? "Goodreads" : (format === "audible" || format === "audible-csv") ? "Audible" : "Libby";
-    try {
-      const r = await runImport(parsed, { books, enrich, onImportBooks, onProgress: setImporting });
-      setImporting(null);
-      if (r.allExisting) { onToast?.({ text: `All ${sourceLabel} books are already in this library` }); return; }
-      setImportedCount((n) => n + r.imported);
-      onToast?.({
-        text: `Imported ${r.imported} books from ${sourceLabel}`
-          + (r.seriesCount ? `, organized ${r.seriesCount} series` : "")
-          + (note ? ` (${note})` : ""),
-      });
-    } catch (err) {
-      setImporting(null);
-      onToast?.({ text: `Import failed: ${err.message}`, isError: true });
-    }
+    await doImport(parsed, sourceLabel, note);
   };
 
   return (
@@ -164,9 +170,12 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
                 <input type="checkbox" checked={enrich} onChange={(e) => setEnrich(e.target.checked)} className="accent-accent-500" />
                 Enrich imports with covers, narrators &amp; durations (slower)
               </label>
-              <button onClick={() => fileRef.current?.click()} className={btnSecondary}>
-                <Upload className="h-4 w-4" /> Import a file
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => fileRef.current?.click()} className={btnSecondary}>
+                  <Upload className="h-4 w-4" /> Import a file
+                </button>
+                <PasteImport onConfirm={(rows) => doImport(rows, "your list")} onToast={onToast} />
+              </div>
               <input ref={fileRef} type="file" accept=".csv,.json,text/csv,application/json" onChange={handleFile} className="hidden" />
               {importedCount > 0 && (
                 <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">

@@ -956,7 +956,6 @@ export default function App({ session, onSignOut }) {
           onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
           audibleSubscriber={!!prefs.audible_subscriber}
           onAudibleSubscriberChange={(v) => savePrefs({ audible_subscriber: v })}
-          welcome={onboarding}
           onClose={() => { setSettingsOpen(false); setOnboarding(false); }}
           onSignOut={onSignOut}
           onToast={setToast}
