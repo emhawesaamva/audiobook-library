@@ -1,6 +1,6 @@
 # Audiobook Library
 
-A multi-user audiobook tracking and recommendation app built with React, Vite, Tailwind CSS, and Supabase. Live at https://emslibrary.vercel.app.
+A multi-user audiobook tracking and recommendation app built with React, Vite, Tailwind CSS, and Supabase. Live at https://audiolib.io.
 
 ## What it is
 
