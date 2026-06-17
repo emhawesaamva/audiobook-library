@@ -16,7 +16,7 @@ Google plus a switch in Supabase. Do these once:
    - Application type: **Web application**
    - Name: `Library web`
    - Authorized JavaScript origins — add both:
-     - `https://emslibrary.vercel.app`
+     - `https://audiolib.io`
      - `http://localhost:5173`
    - Authorized redirect URIs — add exactly:
      - `https://lschyxipktswvmicodij.supabase.co/auth/v1/callback`
@@ -31,7 +31,7 @@ Google plus a switch in Supabase. Do these once:
 ## Part 3 — Supabase URL configuration
 
 1. Go to https://supabase.com/dashboard/project/lschyxipktswvmicodij/auth/url-configuration
-2. **Site URL**: `https://emslibrary.vercel.app`
+2. **Site URL**: `https://audiolib.io`
 3. **Redirect URLs** → add: `http://localhost:5173`
 
 Done. The "Continue with Google" button on the login page will work immediately —
