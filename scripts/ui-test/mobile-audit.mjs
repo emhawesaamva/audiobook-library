@@ -1,18 +1,76 @@
 // Mobile usability audit (iPhone portrait 390x844) for the audiobook-library app.
 // Run: node scripts/ui-test/mobile-audit.mjs
 import { chromium } from 'playwright';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, 'mobile-shots');
+const FIXTURES = path.join(__dirname, 'fixtures');
 mkdirSync(SHOTS, { recursive: true });
+mkdirSync(FIXTURES, { recursive: true });
+
+// Unknown-format CSV (with a 2-volume series) used to exercise the ImportConfirm
+// dialog and create a series for the SeriesModal geometry check.
+const MOBILE_CSV = [
+  'Book,Writer,Shelf,Saga,Vol',
+  'Gardens of the Moon,Steven Erikson,finished,The Malazan Book of the Fallen,1',
+  'Deadhouse Gates,Steven Erikson,tbr,The Malazan Book of the Fallen,2',
+].join('\n');
+const MOBILE_CSV_PATH = path.join(FIXTURES, 'mobile-unknown.csv');
+writeFileSync(MOBILE_CSV_PATH, MOBILE_CSV);
 
 const BASE = process.env.UI_TEST_BASE || 'http://localhost:5173';
 const EMAIL = 'mobile-test@library-integration.test';
 const PASSWORD = 'mobile-test-1234';
 const T = 30000;
+
+// Default to STUBBED, deterministic external APIs (Claude + Audible metadata) so
+// the audit is reproducible and free. Unlike the functional suite, a *layout*
+// audit's value comes from the SHAPE of content, so the fixtures are deliberately
+// adversarial — a very long title, many narrators, a long blurb, big rating
+// counts — to reliably re-test the worst-case wrapping/overflow every run rather
+// than hoping the live API returns something long enough. Set USE_REAL_AI=1 to
+// audit against real catalog/recommendation content instead.
+const STUB = process.env.USE_REAL_AI !== '1';
+
+// 1x1 transparent PNG so dropdown/cover <img> elements actually render (the
+// add-dialog dropdown selector requires `:has(img)`); CSS controls their size.
+const COVER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const LONG_TITLE = 'The Extraordinarily Long and Unabridged Chronicle of the Wandering Star: Book One of the Everlasting Saga of the Thousand Kingdoms and the Lands Beyond the Sea';
+const MANY_NARRATORS = 'Ray Porter, Julia Whelan, Michael Kramer, Kate Reading, Simon Vance, Bahni Turpin';
+const LONG_BLURB = 'A sweeping, multi-generational epic that spans a dozen worlds and a thousand years, following an unlikely band of travelers as they unravel a conspiracy reaching to the very edges of the known galaxy — perfect for fans of grand, immersive space opera with richly drawn characters and intricate political intrigue.';
+
+const SEARCH_RESULTS = [
+  { asin: 'B0ADVERSARIAL', title: LONG_TITLE, author: 'Alexandra Bartholomew-Worthington', narrator: MANY_NARRATORS, year: 2021, duration_minutes: 1820, cover_url: COVER, isbn: '9780000000001', description: LONG_BLURB, public_rating: { average: 4.6, count: 128432 }, series: { title: 'The Everlasting Saga of the Thousand Kingdoms', position: 1, asin: 'B0SERIES' } },
+  { asin: 'B0NORMAL2', title: 'Project Hail Mary', author: 'Andy Weir', narrator: 'Ray Porter', year: 2021, duration_minutes: 970, cover_url: COVER, isbn: '9780593135204', description: 'A lone astronaut must save humanity.', public_rating: { average: 4.5, count: 98213 } },
+  { asin: 'B0NORMAL3', title: 'Recursion', author: 'Blake Crouch', narrator: 'Jon Lindstrom, Abby Craden', year: 2019, duration_minutes: 660, cover_url: COVER, isbn: '9781524759780', description: 'Memory is a weapon.', public_rating: { average: 4.2, count: 41022 } },
+];
+
+const json = (obj) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(obj) });
+function stubMetadata(url) {
+  if (url.includes('libby=')) return json({ available: false, holds: 1342, estimatedWaitDays: 280 });
+  if (url.includes('series=')) return json({ series: null, volumes: [] });
+  return json({ results: SEARCH_RESULTS });
+}
+const aiMsg = (text) => json({ id: 'msg_stub', type: 'message', role: 'assistant', model: 'claude-haiku-4-5-20251001', content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } });
+function stubClaude(postData) {
+  const p = postData || '';
+  if (/recommendation engine/i.test(p)) {
+    const recs = [
+      { title: LONG_TITLE, author: 'Alexandra Bartholomew-Worthington' },
+      ['Hyperion', 'Dan Simmons'], ['A Memory Called Empire', 'Arkady Martine'],
+      ['The Long Way to a Small, Angry Planet', 'Becky Chambers'], ['Ancillary Justice', 'Ann Leckie'],
+      ['Leviathan Wakes', 'James S. A. Corey'],
+    ].map((r) => Array.isArray(r) ? { title: r[0], author: r[1] } : r)
+      .map((r) => ({ ...r, year: '2015', why: LONG_BLURB, similarity: 'most like: Dune', genre: 'Science Fiction', subgenre: 'Space Opera' }));
+    return aiMsg(JSON.stringify({ headline: 'Great picks for you!', recommendations: recs, note: '' }));
+  }
+  if (/structured list of books/i.test(p)) return aiMsg(JSON.stringify({ books: [{ title: 'The Martian', author: 'Andy Weir', status: 'read' }], note: '' }));
+  if (/map the columns/i.test(p)) return aiMsg(JSON.stringify({ mapping: { title: 'Book', author: 'Writer', status: 'Shelf', series_title: 'Saga', series_position: 'Vol' }, statusMap: { finished: 'read', tbr: 'wanttoread', reading: 'reading' }, note: '' }));
+  return aiMsg(JSON.stringify({ note: '' }));
+}
 
 // Supabase creds from .env, so the audit can self-provision its test account.
 const env = Object.fromEntries(
@@ -26,23 +84,31 @@ const SECRET = env.SUPABASE_SECRET_KEY;
 // Create the test account via the Supabase admin API if it doesn't exist yet.
 // The on_auth_user_created trigger then creates the matching accounts row, so a
 // first sign-in lands on the "Create your first library" / onboarding flow.
+// Reset to a FRESH account every run (delete then recreate). The audit must be
+// deterministic across runs — reusing an account accumulates state (e.g. books
+// from a previous import would dedupe on the next run and change the flow).
 async function ensureTestAccount() {
   if (!SUPA_URL || !SECRET) {
     console.log('  [setup] no SUPABASE_SECRET_KEY in .env — assuming the test account already exists');
     return;
   }
-  const h = { apikey: SECRET, Authorization: `Bearer ${SECRET}` };
+  const h = { apikey: SECRET, Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' };
   try {
-    const existing = await fetch(`${SUPA_URL}/rest/v1/accounts?email=eq.${encodeURIComponent(EMAIL)}&select=id`, { headers: h }).then((r) => r.json());
-    if (Array.isArray(existing) && existing.length) { console.log(`  [setup] test account ${EMAIL} already exists`); return; }
+    const list = await fetch(`${SUPA_URL}/auth/v1/admin/users?per_page=200`, { headers: h }).then((r) => r.json());
+    const users = list.users ?? list;
+    const hit = Array.isArray(users) ? users.find((u) => (u.email ?? '').toLowerCase() === EMAIL.toLowerCase()) : null;
+    if (hit) {
+      await fetch(`${SUPA_URL}/auth/v1/admin/users/${hit.id}`, { method: 'DELETE', headers: h });
+      console.log(`  [setup] deleted existing ${EMAIL} for a clean run`);
+    }
   } catch { /* fall through and try to create */ }
   const r = await fetch(`${SUPA_URL}/auth/v1/admin/users`, {
     method: 'POST',
-    headers: { ...h, 'Content-Type': 'application/json' },
+    headers: h,
     body: JSON.stringify({ email: EMAIL, password: PASSWORD, email_confirm: true }),
   });
   if (r.ok) {
-    console.log(`  [setup] created test account ${EMAIL}`);
+    console.log(`  [setup] provisioned fresh test account ${EMAIL}`);
     await new Promise((res) => setTimeout(res, 1500)); // let the signup trigger run
   } else {
     console.log(`  [setup] could not create test account: ${r.status} ${(await r.text()).slice(0, 200)}`);
@@ -76,6 +142,14 @@ page.on('console', (m) => {
   if (m.type() === 'error') consoleErrors.push({ step: currentStep, text: m.text().slice(0, 300) });
 });
 page.on('pageerror', (e) => consoleErrors.push({ step: currentStep, text: `PAGEERROR: ${String(e).slice(0, 300)}` }));
+
+if (STUB) {
+  await page.route('**/v1/messages', (r) => r.fulfill(stubClaude(r.request().postData())));
+  await page.route('**/api/metadata**', (r) => r.fulfill(stubMetadata(r.request().url())));
+  console.log('  [setup] external APIs STUBBED with layout-adversarial fixtures (USE_REAL_AI=1 to audit live content)');
+}
+// Auto-dismiss the one-time "This book is on Audible" promo whenever it appears.
+await page.addLocatorHandler(page.getByRole('button', { name: 'Already a subscriber' }), async (b) => { await b.click(); });
 
 async function shot(name, opts = {}) {
   const file = path.join(SHOTS, `${name}.png`);
@@ -347,28 +421,43 @@ await step('07-add-form', async () => {
   });
   if (stars) note('tap:star-rating', `star spans ${stars.w}x${stars.h}px each -> half-star tap target ~${Math.round(stars.w / 2)}x${stars.h}px`);
   await shot('07-add-form-status-read');
+  // Expand "More details" — the dense, layout-fragile inputs (tags chip editor,
+  // date pickers, length spinners, notes) live here and are otherwise unaudited.
+  const moreBtn = page.getByRole('button', { name: /More details/ });
+  if (await moreBtn.isVisible().catch(() => false)) {
+    await moreBtn.click();
+    await page.waitForTimeout(300);
+    await page.evaluate(() => {
+      const p = [...document.querySelectorAll('div')].filter((d) => {
+        const cs = getComputedStyle(d);
+        return /(auto|scroll)/.test(cs.overflowY) && d.scrollHeight > d.clientHeight + 1 && d.getBoundingClientRect().width > 200;
+      }).pop();
+      if (p) p.scrollTop = p.scrollHeight;
+    });
+    await page.waitForTimeout(300);
+    await shot('07-add-form-more-details');
+    await overflowCheck('add-form-more-details');
+    await tapTargetScan('add-form-more-details');
+  } else {
+    note('add-form', 'could not find "More details" toggle to audit advanced fields');
+  }
   await page.getByRole('button', { name: 'Add', exact: true }).last().click();
   await page.waitForFunction(() => {
     const l = [...document.querySelectorAll('label')].find((x) => x.textContent.trim().startsWith('Title'));
     const i = l && (l.querySelector('input') || l.parentElement.querySelector('input'));
     return i && i.value === '';
   }, { timeout: 20000 });
-  // Adding a book fires the one-time "grab it free on Audible" promo, which overlays
-  // the app. Dismiss via "Already a subscriber" — this also permanently silences it
-  // for the test account, so it won't block later steps or future runs.
-  const promo = page.getByRole('button', { name: 'Already a subscriber' });
-  if (await promo.isVisible().catch(() => false)) {
-    note('add-form', 'Audible promo appeared after add; dismissed via "Already a subscriber"');
-    await promo.click();
-    await page.waitForTimeout(400);
-  }
+  // The one-time "grab it free on Audible" promo that fires after an add is
+  // auto-dismissed by the addLocatorHandler registered above — no explicit
+  // handling here (doing both races: the handler removes it, then the explicit
+  // click hangs waiting for the vanished button).
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForTimeout(600);
 });
 
 // ---------- 5. views ----------
 await step('08-card-grid', async () => {
-  await page.getByText('Project Hail Mary').first().waitFor({ state: 'visible' });
+  await page.getByText(/Extraordinarily Long/).first().waitFor({ state: 'visible' });
   await page.waitForTimeout(1200); // covers + possible auto-recommend banner
   await shot('08-library-cards');
   await overflowCheck('cards-view');
@@ -390,7 +479,7 @@ await step('10-list-view', async () => {
   await overflowCheck('list-view');
   // readability: what does the first row actually show at 390px?
   const row = await page.evaluate(() => {
-    const t = [...document.querySelectorAll('main *')].find((el) => el.textContent.includes('Project Hail Mary') && el.children.length > 1 && el.getBoundingClientRect().height < 120 && el.getBoundingClientRect().height > 20);
+    const t = [...document.querySelectorAll('main *')].find((el) => el.textContent.includes('Extraordinarily Long') && el.children.length > 1 && el.getBoundingClientRect().height < 160 && el.getBoundingClientRect().height > 20);
     if (!t) return null;
     const r = t.getBoundingClientRect();
     return { text: t.innerText.replace(/\n/g, ' | ').slice(0, 200), w: Math.round(r.width), h: Math.round(r.height) };
@@ -404,7 +493,7 @@ await step('11-card-menu', async () => {
   await page.locator('button[title="cards"]').click(); // back to cards
   await page.waitForTimeout(700);
   // Tapping a (non-series) book card opens its action menu — the three-dots button is gone.
-  await page.getByText('Project Hail Mary').first().click();
+  await page.getByText(/Extraordinarily Long/).first().click();
   await page.waitForTimeout(500);
   await shot('11-card-menu-open');
   // does the dropdown fit?
@@ -491,6 +580,101 @@ await step('16-settings', async () => {
   await page.waitForTimeout(400);
   await shot('16-settings-bottom');
   await page.locator('button[aria-label="Close"]').first().click().catch(() => {});
+});
+
+// ---------- 10. share dialog geometry (+ capture share id for public profile) ----------
+let shareId = null;
+await step('17-share-dialog', async () => {
+  await page.locator('button[aria-label="Share library"]').click();
+  await page.getByRole('button', { name: 'Done', exact: true }).waitFor({ state: 'visible' });
+  await shot('17-share-dialog');
+  await dialogMetrics('share-dialog');
+  await overflowCheck('share-dialog');
+  const url = await page.locator('span.font-mono').first().textContent();
+  const m = (url || '').match(/\/share\/([\w-]+)/);
+  if (m) shareId = m[1];
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.waitForTimeout(300);
+});
+
+// ---------- 11. paste-import dialog geometry ----------
+await step('18-paste-dialog', async () => {
+  await page.locator('button[aria-label="Settings"]').click();
+  await page.getByText('Import & export').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: /Paste a list/ }).click();
+  await page.locator('textarea').first().waitFor({ state: 'visible' });
+  await shot('18-paste-dialog');
+  await dialogMetrics('paste-dialog');
+  await overflowCheck('paste-dialog');
+  await tapTargetScan('paste-dialog');
+  await page.keyboard.press('Escape'); // closes paste (and possibly settings) dialog
+  await page.waitForTimeout(300);
+});
+
+// ---------- 12. AI-mapped import confirmation dialog + create a series ----------
+await step('19-import-confirm', async () => {
+  if (!(await page.getByText('Import & export').isVisible().catch(() => false))) {
+    await page.locator('button[aria-label="Settings"]').click();
+    await page.getByText('Import & export').waitFor({ state: 'visible' });
+  }
+  const enrich = page.locator('input[type="checkbox"]').first();
+  if (await enrich.isChecked().catch(() => false)) await enrich.uncheck();
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: /Import/ }).first().click(),
+  ]);
+  await chooser.setFiles(MOBILE_CSV_PATH);
+  await page.getByText('Review before importing').waitFor({ state: 'visible', timeout: 30000 });
+  await shot('19-import-confirm');
+  await dialogMetrics('import-confirm');
+  await overflowCheck('import-confirm');
+  await page.getByRole('button', { name: /Looks right — import/ }).click();
+  await page.getByText(/Imported \d+ books/).waitFor({ state: 'visible', timeout: 30000 });
+});
+
+// ---------- 13. series modal geometry ----------
+await step('20-series-modal', async () => {
+  await page.locator('button[aria-label="Close"]').first().click().catch(() => {}); // close settings
+  await page.getByRole('button', { name: 'Library', exact: true }).click().catch(() => {});
+  await page.getByText(/series ›/).first().click();
+  await page.getByText('Books in series').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForTimeout(500);
+  await shot('20-series-modal');
+  await dialogMetrics('series-modal');
+  await overflowCheck('series-modal');
+  await tapTargetScan('series-modal');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+});
+
+// ---------- 14. narrow 320px stress pass (iPhone SE / small Android) ----------
+await step('21-narrow-320', async () => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: 'Library', exact: true }).click().catch(() => {});
+  await page.waitForTimeout(400);
+  await shot('21-narrow-cards');
+  await overflowCheck('narrow320-cards');
+  await page.locator('button[title="list"]').click().catch(() => {});
+  await page.waitForTimeout(400);
+  await shot('21-narrow-list');
+  await overflowCheck('narrow320-list');
+  await page.getByRole('button', { name: 'Stats', exact: true }).click().catch(() => {});
+  await page.waitForTimeout(600);
+  await shot('21-narrow-stats');
+  await overflowCheck('narrow320-stats');
+});
+
+// ---------- 15. public profile (read-only) ----------
+await step('22-public-profile', async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (!shareId) throw new Error('no share id was captured from the share dialog');
+  await page.goto(`${BASE}/share/${shareId}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
+  await shot('22-public-profile');
+  await shot('22-public-profile-full', { fullPage: true });
+  await overflowCheck('public-profile');
+  await tapTargetScan('public-profile');
 });
 
 await browser.close();

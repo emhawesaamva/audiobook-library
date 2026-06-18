@@ -287,6 +287,67 @@ export function parseAudibleCSV(text) {
   return { books, errors, note: null };
 }
 
+// ---- StoryGraph CSV import ----
+// StoryGraph export: Title, Authors, Contributors, ISBN/UID, Format, Read Status,
+// Date Added, Last Date Read, Dates Read, Read Count, Moods, Pace, ...,
+// Star Rating, Review, Content Warnings, Content Warning Description, Tags, Owned?
+// ISBN/UID may be an ASIN (B0XXXXXXXXX) or a real ISBN.
+export function parseStorygraphCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { books: [], errors: ["Empty file"] };
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (name) => header.indexOf(name.toLowerCase());
+
+  const iTitle = col("title"), iAuthors = col("authors"), iIsbn = col("isbn/uid"),
+    iStatus = col("read status"), iLastRead = col("last date read"),
+    iDatesRead = col("dates read"), iReadCount = col("read count"),
+    iMoods = col("moods"), iTags = col("tags"),
+    iRating = col("star rating"), iReview = col("review");
+
+  if (iTitle === -1 || iStatus === -1)
+    return { books: [], errors: ["Not a StoryGraph export: missing Title/Read Status columns"] };
+
+  const statusMap = { "read": "read", "currently-reading": "reading", "to-read": "wanttoread", "did-not-finish": "dnf" };
+  const cell = (r, i) => (i === -1 ? "" : (r[i] ?? "").trim());
+  const parseDate = (v) => /^\d{4}\/\d{2}\/\d{2}$/.test(v) ? v.replaceAll("/", "-") : null;
+  const isAsin = (v) => /^B[0-9A-Z]{9}$/.test(v);
+
+  const books = [];
+  const errors = [];
+  for (const r of rows.slice(1)) {
+    const title = cell(r, iTitle);
+    if (!title) continue;
+    try {
+      const statusRaw = cell(r, iStatus);
+      const uidRaw = cell(r, iIsbn);
+      const lastRead = parseDate(cell(r, iLastRead));
+      const datesRead = cell(r, iDatesRead).split(",").map((d) => d.trim()).filter(Boolean);
+      const date_finished = lastRead ?? (datesRead.length ? parseDate(datesRead[datesRead.length - 1]) : null);
+      const readCount = Number(cell(r, iReadCount)) || 0;
+      const rating = Number(cell(r, iRating)) > 0 ? Number(cell(r, iRating)) : null;
+      const tagsRaw = cell(r, iTags).split(",").map((t) => t.trim()).filter(Boolean);
+      const moodsRaw = cell(r, iMoods).split(",").map((m) => m.trim()).filter(Boolean);
+      const allTags = [...tagsRaw, ...moodsRaw];
+
+      books.push({
+        title,
+        author: cell(r, iAuthors) || null,
+        isbn: !isAsin(uidRaw) && uidRaw ? uidRaw : null,
+        asin: isAsin(uidRaw) ? uidRaw : null,
+        status: statusMap[statusRaw] ?? "wanttoread",
+        date_finished,
+        reread_count: Math.max(0, readCount - 1),
+        rating,
+        notes: cell(r, iReview) || null,
+        tags: allTags.length ? allTags : null,
+      });
+    } catch (e) {
+      errors.push(`Row "${title}": ${e.message}`);
+    }
+  }
+  return { books, errors };
+}
+
 // Sniff which importer fits a file's content.
 export function detectImportFormat(text, filename = "") {
   if (filename.endsWith(".json") || text.trimStart().startsWith("{")) {
@@ -302,8 +363,155 @@ export function detectImportFormat(text, filename = "") {
   // distinctive "narrators" column before the Goodreads check below.
   if (header.includes("narrators") && header.includes("title")) return "audible-csv";
   if (header.includes("exclusive shelf") || (header.includes("my rating") && header.includes("title"))) return "goodreads";
+  if (header.includes("read status") && header.includes("star rating")) return "storygraph";
   if (header.includes("activity") && header.includes("timestamp")) return "libby";
   return null;
+}
+
+// ---- AI-assisted import primitives (tiers 2 & 3) ----
+// These are the deterministic halves of the AI cascade: AI infers the
+// column mapping / repairs rows, but the bulk parsing and validation below
+// run locally so cost stays flat regardless of library size.
+
+export const VALID_STATUSES = ["read", "reading", "wanttoread", "recommended", "dnf"];
+
+// Fields a generic (unknown-format) CSV can be mapped onto. `read_count` is a
+// synthetic source field (total times read) converted to reread_count.
+// Order is the canonical order shown in the import preview.
+export const MAPPABLE_FIELDS = [
+  "title", "author", "status", "rating", "date_finished", "date_started",
+  "year", "isbn", "asin", "narrator", "duration_minutes", "series_title",
+  "series_position", "notes", "tags", "read_count", "goodreads_rating",
+];
+
+const isAsin = (v) => /^B[0-9A-Z]{9}$/.test(v);
+const cleanIsbnUid = (v) => (v ?? "").replace(/[="]/g, "").trim();
+
+// Coerce a raw cell to an ISO date, or null. Returns { value, failed } so the
+// caller can flag a value that was present but unparseable (tier-3 repair bait).
+function coerceDate(raw) {
+  const v = (raw ?? "").trim();
+  if (!v) return { value: null, failed: false };
+  const ymd = v.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (ymd) {
+    const [, y, m, d] = ymd;
+    return { value: `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`, failed: false };
+  }
+  // Fall back to Date for human formats like "May 13, 2024".
+  const t = Date.parse(v);
+  if (!Number.isNaN(t)) return { value: new Date(t).toISOString().slice(0, 10), failed: false };
+  return { value: null, failed: true };
+}
+
+const toNum = (raw) => {
+  const n = Number(String(raw ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+// Generic mapping-based CSV parser (tier 2). `mapping` maps our field names to
+// source column names (or null); `statusMap` maps raw status values to our
+// status enum. Unparseable-but-present values are stashed in `_unparsed` so the
+// tier-3 repair pass can find them. Mirrors the shape the dedicated parsers emit.
+export function parseWithMapping(text, { mapping = {}, statusMap = {} } = {}) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { books: [], errors: ["Empty file"] };
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const idx = {};
+  for (const [field, colName] of Object.entries(mapping)) {
+    idx[field] = colName ? header.indexOf(String(colName).trim().toLowerCase()) : -1;
+  }
+  if (!("title" in idx) || idx.title === -1)
+    return { books: [], errors: ["Mapping did not identify a title column"] };
+
+  const cell = (r, field) => (idx[field] == null || idx[field] === -1 ? "" : (r[idx[field]] ?? "").trim());
+  const norm = (v) => v.toLowerCase().trim();
+
+  const books = [];
+  const errors = [];
+  for (const r of rows.slice(1)) {
+    const title = cell(r, "title");
+    if (!title) continue;
+    try {
+      const unparsed = {};
+      const book = { title };
+
+      if ("author" in idx) book.author = cell(r, "author") || null;
+      if ("narrator" in idx) book.narrator = cell(r, "narrator") || null;
+      if ("notes" in idx) book.notes = cell(r, "notes") || null;
+
+      if ("status" in idx) {
+        const raw = cell(r, "status");
+        book.status = statusMap[norm(raw)] ?? statusMap[raw] ?? "wanttoread";
+      }
+
+      for (const f of ["rating", "goodreads_rating"]) {
+        if (f in idx) { const n = toNum(cell(r, f)); book[f] = n && n > 0 ? n : null; }
+      }
+      if ("year" in idx) { const n = toNum(cell(r, "year")); book.year = n && n > 0 ? Math.trunc(n) : null; }
+      if ("duration_minutes" in idx) { const n = toNum(cell(r, "duration_minutes")); book.duration_minutes = n && n > 0 ? Math.trunc(n) : null; }
+      if ("series_position" in idx) { const n = toNum(cell(r, "series_position")); book.series_position = n != null ? n : null; }
+      if ("series_title" in idx) book.series_title = cell(r, "series_title") || null;
+
+      if ("read_count" in idx) { const n = toNum(cell(r, "read_count")); book.reread_count = Math.max(0, (n || 1) - 1); }
+
+      for (const f of ["date_finished", "date_started"]) {
+        if (f in idx) {
+          const { value, failed } = coerceDate(cell(r, f));
+          book[f] = value;
+          if (failed) unparsed[f] = cell(r, f);
+        }
+      }
+
+      if ("isbn" in idx || "asin" in idx) {
+        const isbnRaw = cleanIsbnUid(cell(r, "isbn"));
+        const asinRaw = cleanIsbnUid(cell(r, "asin"));
+        // A column mapped as ISBN may actually hold an ASIN (StoryGraph's
+        // ISBN/UID does this); route each value to the right field.
+        book.asin = (asinRaw && isAsin(asinRaw)) ? asinRaw : (isAsin(isbnRaw) ? isbnRaw : null);
+        book.isbn = (isbnRaw && !isAsin(isbnRaw)) ? isbnRaw : null;
+      }
+
+      if ("tags" in idx) {
+        const tags = cell(r, "tags").split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+        book.tags = tags.length ? tags : null;
+      }
+
+      if (Object.keys(unparsed).length) book._unparsed = unparsed;
+      books.push(book);
+    } catch (e) {
+      errors.push(`Row "${title}": ${e.message}`);
+    }
+  }
+  return { books, errors };
+}
+
+// Flag parsed rows with detectable ("loud") problems for the tier-3 repair pass.
+// Catches: garbled/misaligned titles, author duplicating title, out-of-range
+// rating/year, invalid status, and values that were present but failed to parse
+// (recorded in _unparsed by parseWithMapping). Returns array of { index, book,
+// reasons }. It cannot see silently-defaulted values — that is the confirmation
+// layer's job.
+export function detectMalformedRows(books) {
+  const flagged = [];
+  books.forEach((book, index) => {
+    const reasons = [];
+    const title = (book.title ?? "").trim();
+    if (!title) reasons.push("empty title");
+    if (title.includes("�")) reasons.push("garbled title (encoding)");
+    if (title.length > 300) reasons.push("title implausibly long (likely column misalignment)");
+    if (book.author && title && book.author.trim().toLowerCase() === title.toLowerCase())
+      reasons.push("author duplicates title");
+    if (book.status && !VALID_STATUSES.includes(book.status)) reasons.push(`invalid status "${book.status}"`);
+    if (book.rating != null && (book.rating < 0 || book.rating > 5)) reasons.push("rating out of range");
+    if (book.goodreads_rating != null && (book.goodreads_rating < 0 || book.goodreads_rating > 5)) reasons.push("goodreads_rating out of range");
+    // Only flag impossible/garbage years (future-dated, or a misaligned page
+    // count / ISBN landing here). Ancient texts use small or negative (BCE)
+    // years, so no lower bound — that would false-flag classics from Goodreads.
+    if (book.year != null && book.year > 2100) reasons.push("year out of range");
+    for (const [field, raw] of Object.entries(book._unparsed ?? {})) reasons.push(`unparseable ${field}: "${raw}"`);
+    if (reasons.length) flagged.push({ index, book, reasons });
+  });
+  return flagged;
 }
 
 const EXPORT_COLUMNS = [
