@@ -4,10 +4,10 @@
 import { getStatus } from "./bookUtils.js";
 import { MAPPABLE_FIELDS, VALID_STATUSES } from "./csv.js";
 
-export async function claudeFetch(body) {
+export async function claudeFetch(body, extraHeaders = {}) {
   const r = await fetch("/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
   });
   const text = await r.text();

@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import supabase from "../lib/supabase.js";
 import { setAppSetting } from "../lib/db.js";
-import { Spinner, labelCls, inputCls } from "./shared.jsx";
+import { Spinner, labelCls, inputCls, btnSecondary } from "./shared.jsx";
+import { claudeFetch } from "../lib/ai.js";
 import { Trash2 } from "lucide-react";
 
 export default function Admin({ appSettings, onSettingsChange, onToast }) {
@@ -13,6 +14,27 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
   const [deleting, setDeleting] = useState(false);
   const [affiliateCode, setAffiliateCode] = useState(appSettings.affiliate_tag ?? "");
   const [savingAffiliate, setSavingAffiliate] = useState(false);
+  const [tests, setTests] = useState({}); // { claude|gemini: { loading, ok, text, answered, error } }
+
+  // Send a one-line "hello" through the /v1/messages proxy. "claude" uses the
+  // normal path (and will reveal if it fell back to Gemini); "gemini" forces
+  // Gemini via the x-force-gemini header. Shows whether a response came back.
+  const testConnection = async (provider) => {
+    setTests((t) => ({ ...t, [provider]: { loading: true } }));
+    try {
+      const d = await claudeFetch(
+        { model: "claude-haiku-4-5-20251001", max_tokens: 32, messages: [{ role: "user", content: "Reply with a short, friendly hello." }] },
+        provider === "gemini" ? { "x-force-gemini": "1" } : {},
+      );
+      if (d.error) throw new Error(d.error.message || "Request failed");
+      const text = (d.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+      if (!text) throw new Error("Empty response");
+      const answered = d._provider === "gemini" || /gemini/i.test(d.model || "") ? "Gemini" : "Claude";
+      setTests((t) => ({ ...t, [provider]: { ok: true, text, answered } }));
+    } catch (e) {
+      setTests((t) => ({ ...t, [provider]: { ok: false, error: e.message } }));
+    }
+  };
 
   useEffect(() => {
     setAffiliateCode(appSettings.affiliate_tag ?? "");
@@ -119,6 +141,45 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
           <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
             When set, all Audible links on the site will include your tag for commission tracking. Amazon's required disclosure will be shown to users automatically.
           </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-zinc-300/90 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className={labelCls}>AI connection test</div>
+        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+          Sends a one-line “hello” to each provider and shows whether a response came back. “Claude” uses the normal
+          path, so it reveals an automatic fallback to Gemini if Anthropic credits are exhausted.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {["claude", "gemini"].map((p) => {
+            const t = tests[p];
+            return (
+              <div key={p} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium capitalize">{p}</span>
+                  <button
+                    onClick={() => testConnection(p)}
+                    disabled={t?.loading}
+                    className={`${btnSecondary} !px-2.5 !py-1 text-xs`}
+                  >
+                    {t?.loading ? <><Spinner className="h-3.5 w-3.5" /> Testing…</> : `Test ${p === "gemini" ? "Gemini" : "Claude"}`}
+                  </button>
+                </div>
+                {t && !t.loading && (t.ok ? (
+                  <div className="mt-2 text-xs">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">✓ Response received</span>
+                    <span className="text-zinc-500 dark:text-zinc-400"> · answered by {t.answered}</span>
+                    <p className="mt-1 italic text-zinc-600 line-clamp-3 dark:text-zinc-400">“{t.text}”</p>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-xs">
+                    <span className="font-semibold text-red-600 dark:text-red-400">✗ Failed</span>
+                    <p className="mt-1 break-words text-zinc-600 dark:text-zinc-400">{t.error}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
