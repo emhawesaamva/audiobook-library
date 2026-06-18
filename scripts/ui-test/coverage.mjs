@@ -116,6 +116,12 @@ if (STUB) {
   await page.route("**/v1/messages", (r) => r.fulfill(stubClaude(r.request().postData())));
   await page.route("**/api/metadata**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) }));
   console.log("external APIs STUBBED (USE_REAL_AI=1 to run live)");
+} else {
+  // Forcing real AI in tests uses Gemini, not Anthropic — tag each AI request so
+  // the proxy skips Anthropic entirely (see api/_lib/messages-core.js).
+  await page.route("**/v1/messages", (r) =>
+    r.continue({ headers: { ...r.request().headers(), "x-force-gemini": "1" } }));
+  console.log("live AI forced via GEMINI");
 }
 
 // The one-time "This book is on Audible" promo pops up asynchronously after the
