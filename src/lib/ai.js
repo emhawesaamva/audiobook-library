@@ -2,6 +2,7 @@
 // Requests go to /v1/messages, proxied server-side so the API key never
 // reaches the browser (Vite dev proxy locally, Vercel function in prod).
 import { getStatus } from "./bookUtils.js";
+import { MAPPABLE_FIELDS, VALID_STATUSES } from "./csv.js";
 
 export async function claudeFetch(body) {
   const r = await fetch("/v1/messages", {
@@ -104,6 +105,120 @@ Rules:
     books: (parsed.books ?? []).filter((b) => b.title?.trim()),
     note: parsed.note ?? "",
   };
+}
+
+// ---- AI-assisted imports: column mapping (tier 2) & row repair (tier 3) ----
+
+// Pure validation of Claude's mapping response. Exported for testing. Keeps only
+// recognized fields mapped to non-empty column names, and only status
+// translations whose target is a valid status. Throws if no usable mapping.
+export function parseMappingResponse(text) {
+  const json = extractJSON(text);
+  if (!json) throw new Error("Couldn't read the file's structure");
+  const parsed = JSON.parse(json);
+
+  const mapping = {};
+  for (const [field, col] of Object.entries(parsed.mapping ?? {})) {
+    if (MAPPABLE_FIELDS.includes(field) && typeof col === "string" && col.trim())
+      mapping[field] = col.trim();
+  }
+  if (!mapping.title) throw new Error("Couldn't find a title column in this file");
+
+  const statusMap = {};
+  for (const [raw, status] of Object.entries(parsed.statusMap ?? {})) {
+    if (VALID_STATUSES.includes(status)) statusMap[String(raw).toLowerCase().trim()] = status;
+  }
+  return { mapping, statusMap, note: parsed.note ?? "" };
+}
+
+// Tier 2: ask Claude to map an unknown CSV's columns onto our fields. Sends only
+// the header + a small sample of rows (not the whole file) — one cheap call
+// regardless of library size. Returns { mapping, statusMap, note }.
+export async function inferImportMapping({ header, sampleRows }) {
+  const sample = [header, ...sampleRows.slice(0, 5)]
+    .map((row) => row.map((c) => (c ?? "").slice(0, 80)).join(" | "))
+    .join("\n");
+
+  const d = await claudeFetch({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1500,
+    system: `You map the columns of an unknown book-list CSV onto a fixed set of fields. You are given the header row and a few sample data rows (pipe-separated).
+
+Our fields (map each to the source COLUMN NAME exactly as it appears in the header, or omit if absent):
+- title (required), author, status, rating (0-5 personal rating), date_finished, date_started, year (publication year), isbn, asin, narrator, duration_minutes, series_title, series_position, notes, tags, read_count (total times read), goodreads_rating (community/average rating).
+
+Also provide statusMap: translate each distinct raw value in the status column to one of: ${VALID_STATUSES.join(", ")}. ("read"=finished, "reading"=in progress, "wanttoread"=to-read/TBR, "dnf"=did not finish, "recommended"=recommended to them).
+
+Return JSON only, no markdown:
+{"mapping":{"title":"<col>","author":"<col>"},"statusMap":{"<raw value>":"read"},"note":"anything ambiguous"}
+
+Only include fields you are confident about. Use the exact column names from the header. If there is no status column, omit status and statusMap.`,
+    messages: [{ role: "user", content: sample }],
+  });
+  if (d.error) throw new Error(d.error.message);
+  const allText = (d.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return parseMappingResponse(allText);
+}
+
+// Pure merge of repaired rows back into the full book list. Exported for testing.
+// `repaired` aligns to `flagged` order; each entry's fields overwrite the
+// original at flagged[i].index. Clears _unparsed on touched rows.
+export function mergeRepairedRows(books, flagged, repaired) {
+  const out = books.slice();
+  flagged.forEach((f, i) => {
+    const fix = repaired[i];
+    const merged = { ...out[f.index] };
+    if (fix && typeof fix === "object") {
+      for (const [k, v] of Object.entries(fix)) {
+        if (v !== null && v !== undefined && v !== "") merged[k] = v;
+      }
+    }
+    delete merged._unparsed; // internal marker — never persists past repair
+    out[f.index] = merged;
+  });
+  return out;
+}
+
+// Tier 3: send only the detectably-malformed rows to Claude for normalization.
+// Returns the full book list with those rows repaired. Best-effort: on any
+// failure the original books are returned unchanged.
+export async function repairImportRows(books, flagged) {
+  if (!flagged.length) return books;
+  const payload = flagged.map((f, i) => ({
+    i,
+    problems: f.reasons,
+    row: { ...f.book, _unparsed: undefined },
+  }));
+
+  try {
+    const d = await claudeFetch({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4000,
+      system: `You fix malformed book records from a library import. Each item has an index "i", a list of "problems", and the parsed "row". Return corrected rows.
+
+Rules:
+- Keep the same "i" for each row so it can be matched back.
+- Fix only the flagged problems; preserve good values. Correct obvious title garbling, swap author/title if reversed, drop out-of-range numbers (set null), and convert any date to YYYY-MM-DD.
+- status must be one of: ${VALID_STATUSES.join(", ")}.
+- Never invent books not present in the input.
+
+Return JSON only, no markdown:
+{"rows":[{"i":0,"title":"","author":null,"status":null,"date_finished":null,"rating":null,"year":null}]}`,
+      messages: [{ role: "user", content: JSON.stringify(payload) }],
+    });
+    if (d.error) throw new Error(d.error.message);
+    const allText = (d.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    const json = extractJSON(allText);
+    if (!json) return books;
+    const parsed = JSON.parse(json);
+    const rows = parsed.rows ?? [];
+    // Reorder by "i" so merge aligns with flagged order even if Claude reorders.
+    const byIndex = new Map(rows.filter((r) => Number.isInteger(r.i)).map((r) => [r.i, r]));
+    const aligned = flagged.map((_, i) => byIndex.get(i) ?? null);
+    return mergeRepairedRows(books, flagged, aligned);
+  } catch {
+    return books; // best-effort; fall back to the (skipped/null) parsed rows
+  }
 }
 
 // Quick identification of a book from a free-text description (Add form).
