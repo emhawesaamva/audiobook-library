@@ -7,10 +7,12 @@ import { booksToCSV, download } from "../lib/csv.js";
 import { parseImportFile } from "../lib/importPipeline.js";
 import ImportGuides from "./ImportGuides.jsx";
 import ImportConfirm from "./ImportConfirm.jsx";
+import UpdateConfirm from "./UpdateConfirm.jsx";
 import PasteImport from "./PasteImport.jsx";
 import { Upload, Download, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
 import { updateBook } from "../lib/db.js";
+import { runImport, diffImport, formatToSource } from "../lib/importBooks.js";
 
 const AGE_GROUPS = [
   { value: "adult", label: "Adult" },
@@ -21,7 +23,7 @@ const AGE_GROUPS = [
 export default function Settings({
   profile, profiles, books, session, libbyKey,
   audibleSubscriber = false, onAudibleSubscriberChange,
-  onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks,
+  onSelectProfile, onRenameProfile, onAgeGroupChange, onDeleteProfile, onImportBooks, onUpdateBooks,
   onLibbyKeyChange, onRefreshDone, onClose, onSignOut, onToast,
 }) {
   const [name, setName] = useState(profile.name);
@@ -36,6 +38,7 @@ export default function Settings({
   const [enrich, setEnrich] = useState(true);
   const [triage, setTriage] = useState(null); // post-import crowd suggestions
   const [pendingImport, setPendingImport] = useState(null); // AI-assisted result awaiting confirmation
+  const [pendingUpdate, setPendingUpdate] = useState(null); // { result, diff, source } awaiting update confirmation
   const [analyzing, setAnalyzing] = useState(false); // AI cascade running on an uploaded file
   const fileRef = useRef(null);
   const lastProfile = profiles.length <= 1;
@@ -98,65 +101,32 @@ export default function Settings({
     if (filled > 0) onRefreshDone?.();
   };
 
-  // Shared import pipeline: dedupe against the library, enrich each book with
-  // Audible metadata (covers/narrator/runtime/genre/series), then hand off to
-  // onImportBooks (which also groups series). Used by file and paste imports.
-  const importParsed = async (parsed, sourceLabel, { note = null, skippedRows = 0 } = {}) => {
-    const existing = new Set(
-      books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).map((b) => b.title.toLowerCase())
-    );
-    const fresh = parsed.filter((b) => !existing.has(b.title.toLowerCase()));
-    if (!fresh.length) {
-      onToast?.({ text: `All ${sourceLabel} books are already in this library` });
-      return;
-    }
-
-    setImporting({ total: fresh.length, done: 0 });
-    const toCreate = [];
-    for (const b of fresh) {
-      let enriched = {};
-      let series = null;
-      if (enrich) {
-        try {
-          const { results } = await searchBooks(`${b.title} ${b.author ?? ""}`, 3);
-          const probe = b.title.toLowerCase().slice(0, 15);
-          const hit = results.find((r) => r.title?.toLowerCase().includes(probe)) ?? results[0];
-          if (hit) {
-            const meta = resultToBook(hit);
-            enriched = {
-              narrator: meta.narrator || null,
-              duration_minutes: meta.duration_minutes,
-              cover_url: meta.cover_url,
-              asin: meta.asin,
-              year: b.year ?? meta.year,
-              ...(meta.genre ? { genre: meta.genre } : {}),
-              ...(meta.subgenre ? { subgenre: meta.subgenre } : {}),
-            };
-            if (hit.series?.asin) series = hit.series; // {asin, title, position}
-          }
-        } catch { /* enrichment is best-effort */ }
-      }
-      const fallbackSeries = !series && b.series_title
-        ? { asin: `series:${b.series_title.toLowerCase()}`, title: b.series_title, position: b.series_position ?? null }
-        : null;
-      toCreate.push({ ...b, ...enriched, genre: b.genre ?? enriched.genre ?? "Other", _series: series ?? fallbackSeries });
-      setImporting((p) => ({ ...p, done: p.done + 1 }));
-    }
+  // Apply a parsed file to the library: reconcile against existing books, create
+  // new ones (enriched + series-grouped) and patch changed ones via runImport,
+  // then toast and surface import triage. Used by file/paste imports and by both
+  // confirmation modals. Books are stamped with `source` (from the detected
+  // format) so a later re-import can scope its diff to that service.
+  const importParsed = async (parsed, sourceLabel, { note = null, skippedRows = 0, format = null } = {}) => {
+    setImporting({ total: parsed.length, done: 0 });
     try {
-      const { seriesCount } = await onImportBooks(toCreate);
-      onToast?.({
-        text: `Imported ${toCreate.length} books from ${sourceLabel}` +
-          (seriesCount ? `, organized ${seriesCount} series` : "") +
-          (note ? ` (${note})` : "") +
-          (skippedRows ? ` (${skippedRows} rows skipped)` : ""),
+      const source = formatToSource(format);
+      const r = await runImport(parsed, {
+        books, enrich, source, onImportBooks, onUpdateBooks, onProgress: setImporting,
       });
-      // Import triage: surface the crowd's favorite unread imports as a
-      // ready-made starting point.
-      const top = toCreate
-        .filter((b) => b.status === "wanttoread" && Number(b.goodreads_rating) > 0)
-        .sort((a, b) => Number(b.goodreads_rating) - Number(a.goodreads_rating))
-        .slice(0, 3);
-      if (top.length >= 2) setTriage({ imported: toCreate.length, top });
+      if (r.allExisting) {
+        onToast?.({ text: `All ${sourceLabel} books are already in this library` });
+      } else {
+        onToast?.({
+          text: `Imported ${r.imported} books from ${sourceLabel}` +
+            (r.updated ? `, updated ${r.updated}` : "") +
+            (r.seriesCount ? `, organized ${r.seriesCount} series` : "") +
+            (note ? ` (${note})` : "") +
+            (skippedRows ? ` (${skippedRows} rows skipped)` : ""),
+        });
+        // Import triage: surface the crowd's favorite unread imports as a
+        // ready-made starting point.
+        if (r.top.length >= 2) setTriage({ imported: r.imported, top: r.top });
+      }
     } catch (err) {
       onToast?.({ text: `Import failed: ${err.message}`, isError: true });
     }
@@ -191,14 +161,31 @@ export default function Settings({
       setPendingImport(result);
       return;
     }
-    await importParsed(result.books, result.sourceLabel, { note: result.note, skippedRows: result.errors?.length ?? 0 });
+    // A recognized export that overlaps the existing library is an *update*:
+    // preview the diff (new / changed / no-longer-present) before applying. A
+    // file with no overlap is a fresh import and lands directly, as before.
+    const source = formatToSource(result.format);
+    const diff = diffImport(result.books, books, { source });
+    if (diff.update.length || diff.unchanged) {
+      setPendingUpdate({ result, diff, source });
+      return;
+    }
+    await importParsed(result.books, result.sourceLabel, { note: result.note, skippedRows: result.errors?.length ?? 0, format: result.format });
   };
 
   const confirmPendingImport = async () => {
     const r = pendingImport;
     setPendingImport(null);
     if (!r) return;
-    await importParsed(r.books, r.sourceLabel, { note: r.note, skippedRows: r.errors?.length ?? 0 });
+    await importParsed(r.books, r.sourceLabel, { note: r.note, skippedRows: r.errors?.length ?? 0, format: r.format });
+  };
+
+  const confirmPendingUpdate = async () => {
+    const p = pendingUpdate;
+    setPendingUpdate(null);
+    if (!p) return;
+    const { result: r } = p;
+    await importParsed(r.books, r.sourceLabel, { note: r.note, skippedRows: r.errors?.length ?? 0, format: r.format });
   };
 
   const section = "border-t border-zinc-100 pt-4 mt-4 dark:border-zinc-800";
@@ -310,8 +297,9 @@ export default function Settings({
             </label>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               Accepts Audible Library Extractor (CSV or JSON), Goodreads, StoryGraph, or Libby exports — format is detected
-              automatically. Any other book CSV is mapped with AI (you'll confirm before it imports). Imports are additive,
-              duplicates are skipped, and series are grouped together.
+              automatically. Any other book CSV is mapped with AI (you'll confirm before it imports). Re-import a fresh
+              export any time to <strong>update</strong> your library — new books are added and changes (finished, rated,
+              in progress) are picked up, with a preview of what's new and changed before anything is applied.
             </p>
             <ImportGuides />
           </>
@@ -418,6 +406,15 @@ export default function Settings({
 
       {pendingImport && (
         <ImportConfirm result={pendingImport} onConfirm={confirmPendingImport} onCancel={() => setPendingImport(null)} />
+      )}
+
+      {pendingUpdate && (
+        <UpdateConfirm
+          diff={pendingUpdate.diff}
+          sourceLabel={pendingUpdate.result.sourceLabel}
+          onConfirm={confirmPendingUpdate}
+          onCancel={() => setPendingUpdate(null)}
+        />
       )}
 
     </Dialog>

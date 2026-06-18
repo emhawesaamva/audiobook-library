@@ -6,7 +6,7 @@ import { Dialog, btnPrimary, btnSecondary, inputCls, labelCls, Spinner } from ".
 import ImportGuides from "./ImportGuides.jsx";
 import PasteImport from "./PasteImport.jsx";
 import ImportConfirm from "./ImportConfirm.jsx";
-import { runImport } from "../lib/importBooks.js";
+import { runImport, formatToSource } from "../lib/importBooks.js";
 import { parseImportFile } from "../lib/importPipeline.js";
 import { Upload, ArrowRight, ArrowLeft, Check, Sparkles } from "lucide-react";
 
@@ -18,7 +18,7 @@ const AGE_GROUPS = [
 
 const STEP_TITLES = ["Name your library", "Who's it for?", "Bring in your books"];
 
-export default function OnboardingWizard({ profile, books, onRename, onAgeGroupChange, onImportBooks, onToast, onClose }) {
+export default function OnboardingWizard({ profile, books, onRename, onAgeGroupChange, onImportBooks, onUpdateBooks, onToast, onClose }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile.name);
   const [ageGroup, setAgeGroup] = useState(profile.age_group ?? "adult");
@@ -46,15 +46,17 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
     setSaving(false);
   };
 
-  const doImport = async (parsed, sourceLabel, note = null) => {
+  const doImport = async (parsed, sourceLabel, { note = null, format = null } = {}) => {
     if (!parsed.length) return;
     try {
-      const r = await runImport(parsed, { books, enrich, onImportBooks, onProgress: setImporting });
+      const source = formatToSource(format);
+      const r = await runImport(parsed, { books, enrich, source, onImportBooks, onUpdateBooks, onProgress: setImporting });
       setImporting(null);
       if (r.allExisting) { onToast?.({ text: `All ${sourceLabel} books are already in this library` }); return; }
       setImportedCount((n) => n + r.imported);
       onToast?.({
         text: `Imported ${r.imported} books from ${sourceLabel}`
+          + (r.updated ? `, updated ${r.updated}` : "")
           + (r.seriesCount ? `, organized ${r.seriesCount} series` : "")
           + (note ? ` (${note})` : ""),
       });
@@ -90,14 +92,14 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
       setPendingImport(result);
       return;
     }
-    await doImport(result.books, result.sourceLabel, result.note);
+    await doImport(result.books, result.sourceLabel, { note: result.note, format: result.format });
   };
 
   const confirmPendingImport = async () => {
     const r = pendingImport;
     setPendingImport(null);
     if (!r) return;
-    await doImport(r.books, r.sourceLabel, r.note);
+    await doImport(r.books, r.sourceLabel, { note: r.note, format: r.format });
   };
 
   return (
