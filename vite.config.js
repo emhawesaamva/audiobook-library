@@ -27,6 +27,16 @@ function devApi(env) {
           secretKey: env.SUPABASE_SECRET_KEY,
         });
       });
+      // Same Anthropic proxy + Gemini fallback the Vercel function runs in prod.
+      server.middlewares.use("/v1/messages", async (req, res) => {
+        const { handleMessages } = await server.ssrLoadModule("/api/_lib/messages-core.js");
+        await handleMessages(req, res, {
+          anthropicKey: env.ANTHROPIC_API_KEY,
+          geminiKey: env.GEMINI_API_KEY,
+          supabaseUrl: env.SUPABASE_URL || env.VITE_SUPABASE_URL,
+          supabaseSecret: env.SUPABASE_SECRET_KEY,
+        });
+      });
     },
   };
 }
@@ -35,23 +45,5 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react(), tailwindcss(), devApi(env)],
-    server: {
-      proxy: {
-        // Forwards /v1/... -> https://api.anthropic.com/v1/...
-        // API key injected server-side; never exposed to the browser.
-        "/v1": {
-          target: "https://api.anthropic.com",
-          changeOrigin: true,
-          configure: (proxy) => {
-            proxy.on("proxyReq", (proxyReq) => {
-              proxyReq.removeHeader("origin");
-              proxyReq.removeHeader("referer");
-              proxyReq.setHeader("x-api-key", env.ANTHROPIC_API_KEY || "");
-              proxyReq.setHeader("anthropic-version", "2023-06-01");
-            });
-          },
-        },
-      },
-    },
   };
 });

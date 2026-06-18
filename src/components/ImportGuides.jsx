@@ -6,6 +6,7 @@ const SOURCES = [
   { id: "audible", label: "Audible" },
   { id: "goodreads", label: "Goodreads" },
   { id: "libby", label: "Libby" },
+  { id: "storygraph", label: "StoryGraph" },
 ];
 
 const link = "mt-2 block text-accent-600 hover:underline dark:text-accent-400";
@@ -13,7 +14,7 @@ const panel = "mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dar
 const list = "list-decimal space-y-1 pl-4 text-zinc-600 dark:text-zinc-300";
 
 export default function ImportGuides() {
-  const [open, setOpen] = useState(null); // "audible" | "goodreads" | "libby" | null
+  const [open, setOpen] = useState(null); // "audible" | "goodreads" | "libby" | "storygraph" | null
   return (
     <>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -73,6 +74,21 @@ export default function ImportGuides() {
           <p className="mt-2 text-zinc-500 dark:text-zinc-400">Only audiobook activity is imported — ebooks and magazines are skipped automatically.</p>
           <a href="https://help.libbyapp.com/en-us/6207.htm" target="_blank" rel="noopener noreferrer" className={link}>
             Documentation →
+          </a>
+        </div>
+      )}
+      {open === "storygraph" && (
+        <div className={panel}>
+          <ol className={list}>
+            <li>Log in to <strong>app.thestorygraph.com</strong>.</li>
+            <li>Click your profile icon (top right) → <strong>Manage Account</strong>.</li>
+            <li>Scroll down to the <strong>Manage Your Data</strong> section and click <strong>Export StoryGraph Library</strong>.</li>
+            <li>StoryGraph will email you a download link — open that email and download the CSV file.</li>
+            <li>Return here, click Import, and select that file.</li>
+          </ol>
+          <p className="mt-2 text-zinc-500 dark:text-zinc-400">Your read status, ratings, reviews, tags, and moods are all imported.</p>
+          <a href="https://app.thestorygraph.com/user-export" target="_blank" rel="noopener noreferrer" className={link}>
+            Go to StoryGraph Export page →
           </a>
         </div>
       )}
