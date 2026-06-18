@@ -709,6 +709,28 @@ export default function App({ session, onSignOut }) {
           </div>
         )}
 
+        {account?.is_admin && appSettings?.ai_credit_exhausted && (
+          <div role="alert" className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
+            <span>
+              Anthropic API credit is exhausted — AI features are running on the Gemini Flash
+              fallback. Add credits in the Anthropic console to restore Claude.
+            </span>
+            <button
+              onClick={async () => {
+                try {
+                  await db.setAppSetting("ai_credit_exhausted", null);
+                  setAppSettings({ ...appSettings, ai_credit_exhausted: null });
+                } catch (e) {
+                  setToast({ text: e.message, isError: true });
+                }
+              }}
+              className="shrink-0 font-medium underline underline-offset-2 hover:no-underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {tab === "library" && (
           <>
             <UpNext queue={queue} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
