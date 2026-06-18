@@ -1,0 +1,64 @@
+name: CI
+
+# Automated test pipeline.
+#
+# The PR-into-master run is the gate: branch protection blocks the merge — and
+# therefore the Vercel auto-deploy of master — until the tests pass. Pushes to
+# dev get the same fast feedback while iterating; pushes to master re-run so the
+# branch tip always has a recorded status.
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: Unit & integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  # End-to-end (Playwright). Runs only on PRs into master — it's slower than the
+  # unit suite, so dev pushes stay fast. coverage.mjs stubs the paid APIs (Claude
+  # + Audible) so no AI keys are used, but it provisions a throwaway account
+  # through Supabase, so it needs a (non-production) test project's credentials.
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: test
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # coverage.mjs launches Chrome via channel:"chrome", so install the real
+      # Chrome channel (plus OS deps) rather than bundled Chromium.
+      - run: npx playwright install --with-deps chrome
+      # Vite reads VITE_* from a .env file; the test harness (common.js) reads the
+      # same file for SUPABASE_SECRET_KEY. Materialize it from the repo secrets.
+      - name: Write .env from secrets
+        run: |
+          {
+            echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY"
+            echo "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY"
+          } >> .env
+      - name: Start dev server and run E2E
+        run: |
+          npm run dev &
+          npx wait-on -t 60000 http://localhost:5173
+          npm run test:e2e
