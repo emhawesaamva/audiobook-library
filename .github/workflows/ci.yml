@@ -25,37 +25,40 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  # ---------------------------------------------------------------------------
-  # End-to-end (Playwright) — written but NOT enabled.
-  #
-  # coverage.mjs stubs the paid APIs (Claude + Audible), so no AI keys are
-  # needed. It does, however, provision a test account through Supabase, and the
-  # app cannot sign in or load libraries without a live backend. There is no
-  # mock backend, so this job requires two repository secrets:
-  #
-  #     VITE_SUPABASE_URL
-  #     SUPABASE_SECRET_KEY   (service-role / secret key)
-  #
-  # Add them under Settings > Secrets and variables > Actions, then uncomment.
-  # Note: coverage.mjs launches Chrome via channel:"chrome", so it installs the
-  # real Chrome channel rather than bundled Chromium.
-  #
-  # e2e:
-  #   name: End-to-end (Playwright)
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-  #     SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-  #     UI_TEST_BASE: http://localhost:4173
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 20
-  #         cache: npm
-  #     - run: npm ci
-  #     - run: npx playwright install --with-deps chrome
-  #     - run: npm run build
-  #     - run: npm run preview -- --port 4173 &
-  #     - run: npx wait-on http://localhost:4173
-  #     - run: npm run test:e2e
+  # End-to-end (Playwright). Runs only on PRs into master — it's slower than the
+  # unit suite, so dev pushes stay fast. coverage.mjs stubs the paid APIs (Claude
+  # + Audible) so no AI keys are used, but it provisions a throwaway account
+  # through Supabase, so it needs a (non-production) test project's credentials.
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: test
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # coverage.mjs launches Chrome via channel:"chrome", so install the real
+      # Chrome channel (plus OS deps) rather than bundled Chromium.
+      - run: npx playwright install --with-deps chrome
+      # Vite reads VITE_* from a .env file; the test harness (common.js) reads the
+      # same file for SUPABASE_SECRET_KEY. Materialize it from the repo secrets.
+      - name: Write .env from secrets
+        run: |
+          {
+            echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY"
+            echo "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY"
+          } >> .env
+      - name: Start dev server and run E2E
+        run: |
+          npm run dev &
+          npx wait-on -t 60000 http://localhost:5173
+          npm run test:e2e
