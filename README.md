@@ -67,6 +67,6 @@ Then in the Supabase dashboard:
 
 ## To-do
 
-- [ ] **Set up CI.** Add a GitHub Actions workflow that runs `npm test` (unit + import logic) and `npm run build` on every PR so the test suite can't silently rot. The env-dependent suites — `npm run test:e2e`, `npm run test:mobile` (need a dev server + Supabase secrets) and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) — should be a separate manual or scheduled job with secrets, not part of the per-PR gate. See `docs/TESTING.md` for the full test surface.
-- [ ] Confirm `GEMINI_API_KEY` is set in the Vercel project env so the Anthropic→Gemini fallback works in production.
-- [ ] Open a PR `dev` → `master` to ship the StoryGraph + AI-assisted import work.
+- [x] **Set up CI.** GitHub Actions (`.github/workflows/ci.yml`) runs `npm test` (unit + import logic) on pushes to `dev`/`master` and on PRs into `master`. The `npm run test:e2e` Playwright suite also runs on PRs into `master`, against a dedicated **non-production** Supabase test project (paid APIs stubbed). Branch protection on `master` requires both the unit suite and the E2E suite to pass before merging. `npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual. See `docs/TESTING.md` for the full test surface.
+- [x] Confirm `GEMINI_API_KEY` is set in the Vercel project env so the Anthropic→Gemini fallback works in production.
+- [x] Open a PR `dev` → `master` to ship the StoryGraph + AI-assisted import work.
