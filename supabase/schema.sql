@@ -79,6 +79,7 @@ create table public.books (
   queue_position   int,
   reread_count     int not null default 0,
   tags             text[] not null default '{}',
+  source           text check (source in ('audible','goodreads','libby','storygraph','other')),
   legacy_id        text,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
@@ -93,6 +94,7 @@ comment on column public.books.status is 'NULL on series headers - derived from 
 comment on column public.books.rating is '0-5 in half-star steps; NULL = unrated and on series headers.';
 comment on column public.books.queue_position is 'Up Next ordering; NULL = not queued.';
 comment on column public.books.recommended_by is 'Provenance: who recommended this book (person or "Claude").';
+comment on column public.books.source is 'Import provenance: which service this book was imported/updated from. NULL = added manually.';
 
 -- ============ 4. book_reads: re-listen history ============
 create table public.book_reads (
