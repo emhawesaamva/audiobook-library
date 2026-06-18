@@ -147,6 +147,12 @@ if (STUB) {
   await page.route('**/v1/messages', (r) => r.fulfill(stubClaude(r.request().postData())));
   await page.route('**/api/metadata**', (r) => r.fulfill(stubMetadata(r.request().url())));
   console.log('  [setup] external APIs STUBBED with layout-adversarial fixtures (USE_REAL_AI=1 to audit live content)');
+} else {
+  // Forcing real AI uses Gemini, not Anthropic — tag each AI request so the proxy
+  // skips Anthropic entirely (see api/_lib/messages-core.js).
+  await page.route('**/v1/messages', (r) =>
+    r.continue({ headers: { ...r.request().headers(), 'x-force-gemini': '1' } }));
+  console.log('  [setup] live AI forced via GEMINI');
 }
 // Auto-dismiss the one-time "This book is on Audible" promo whenever it appears.
 await page.addLocatorHandler(page.getByRole('button', { name: 'Already a subscriber' }), async (b) => { await b.click(); });
