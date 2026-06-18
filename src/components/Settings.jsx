@@ -255,6 +255,30 @@ export default function Settings({
         </div>
       </div>
 
+      {/* ---- Libby ---- */}
+      <div className={section}>
+        <div className={labelCls}>Libby library code <span className="normal-case font-normal">(applies to your whole account)</span></div>
+        <div className="flex gap-2">
+          <input
+            value={libby}
+            onChange={(e) => setLibby(e.target.value.trim().toLowerCase())}
+            placeholder="e.g. lapl"
+            className={inputCls}
+          />
+          <button
+            onClick={() => { onLibbyKeyChange(libby || null); onToast?.({ text: libby ? "Libby library saved" : "Libby library cleared" }); }}
+            disabled={(libbyKey ?? "") === libby}
+            className={btnSecondary}
+          >
+            Save
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          The slug from your library's Libby URL (libbyapp.com/library/<strong>code</strong>). With it set, every book's
+          “Libby” action searches your library directly; without it, the universal OverDrive search is used.
+        </p>
+      </div>
+
       {/* ---- import / export ---- */}
       <div className={section}>
         <div className={labelCls}>Import & export</div>
@@ -329,45 +353,6 @@ export default function Settings({
         )}
       </div>
 
-      {/* ---- danger zone ---- */}
-      <div className={section}>
-        {confirming ? (
-          <ConfirmRow
-            message={`Delete "${profile.name}" and all its books? This cannot be undone.`}
-            onConfirm={onDeleteProfile}
-            onCancel={() => setConfirming(false)}
-          />
-        ) : (
-          <button onClick={() => setConfirming(true)} disabled={lastProfile} className={`${btnDanger} w-full`} title={lastProfile ? "You can't delete your only library" : undefined}>
-            Delete the library “{profile.name}”{lastProfile ? " (create another first)" : ""}
-          </button>
-        )}
-      </div>
-
-      {/* ---- Libby ---- */}
-      <div className={section}>
-        <div className={labelCls}>Libby library code <span className="normal-case font-normal">(applies to your whole account)</span></div>
-        <div className="flex gap-2">
-          <input
-            value={libby}
-            onChange={(e) => setLibby(e.target.value.trim().toLowerCase())}
-            placeholder="e.g. lapl"
-            className={inputCls}
-          />
-          <button
-            onClick={() => { onLibbyKeyChange(libby || null); onToast?.({ text: libby ? "Libby library saved" : "Libby library cleared" }); }}
-            disabled={(libbyKey ?? "") === libby}
-            className={btnSecondary}
-          >
-            Save
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          The slug from your library's Libby URL (libbyapp.com/library/<strong>code</strong>). With it set, every book's
-          “Libby” action searches your library directly; without it, the universal OverDrive search is used.
-        </p>
-      </div>
-
       {/* ---- Audible ---- */}
       <div className={section}>
         <div className={labelCls}>Audible</div>
@@ -383,6 +368,21 @@ export default function Settings({
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Hides “grab it free on Audible” prompts across the site.
         </p>
+      </div>
+
+      {/* ---- danger zone ---- */}
+      <div className={section}>
+        {confirming ? (
+          <ConfirmRow
+            message={`Delete "${profile.name}" and all its books? This cannot be undone.`}
+            onConfirm={onDeleteProfile}
+            onCancel={() => setConfirming(false)}
+          />
+        ) : (
+          <button onClick={() => setConfirming(true)} disabled={lastProfile} className={`${btnDanger} w-full`} title={lastProfile ? "You can't delete your only library" : undefined}>
+            Delete the library “{profile.name}”{lastProfile ? " (create another first)" : ""}
+          </button>
+        )}
       </div>
 
       {/* ---- account ---- */}
