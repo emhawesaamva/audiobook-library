@@ -3,8 +3,10 @@
 // which library the panel configures (it also switches the active library).
 import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
-import { parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON, parseAudibleJSON, parseAudibleCSV, detectImportFormat, booksToCSV, download } from "../lib/csv.js";
+import { booksToCSV, download } from "../lib/csv.js";
+import { parseImportFile } from "../lib/importPipeline.js";
 import ImportGuides from "./ImportGuides.jsx";
+import ImportConfirm from "./ImportConfirm.jsx";
 import PasteImport from "./PasteImport.jsx";
 import { Upload, Download, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
@@ -33,6 +35,8 @@ export default function Settings({
   const refreshAbort = useRef(false);
   const [enrich, setEnrich] = useState(true);
   const [triage, setTriage] = useState(null); // post-import crowd suggestions
+  const [pendingImport, setPendingImport] = useState(null); // AI-assisted result awaiting confirmation
+  const [analyzing, setAnalyzing] = useState(false); // AI cascade running on an uploaded file
   const fileRef = useRef(null);
   const lastProfile = profiles.length <= 1;
 
@@ -166,21 +170,35 @@ export default function Settings({
     if (!file) return;
     const text = await file.text();
 
-    const format = detectImportFormat(text, file.name.toLowerCase());
-    const parsedResult =
-      format === "goodreads" ? parseGoodreadsCSV(text)
-      : format === "libby" ? parseLibbyCSV(text)
-      : format === "libby-json" ? parseLibbyJSON(text)
-      : format === "audible" ? parseAudibleJSON(text)
-      : format === "audible-csv" ? parseAudibleCSV(text)
-      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV, Libby export, or Audible Library Extractor export"] };
-    const { books: parsed, errors, note } = parsedResult;
-    if (!parsed.length) {
-      onToast?.({ text: errors[0] ?? "No books found in file", isError: true });
+    setAnalyzing(true);
+    let result;
+    try {
+      result = await parseImportFile(text, file.name);
+    } catch (err) {
+      setAnalyzing(false);
+      onToast?.({ text: `Couldn't read that file: ${err.message}`, isError: true });
       return;
     }
-    const sourceLabel = format === "goodreads" ? "Goodreads" : (format === "audible" || format === "audible-csv") ? "Audible" : "Libby";
-    await importParsed(parsed, sourceLabel, { note, skippedRows: errors.length });
+    setAnalyzing(false);
+
+    if (!result.books.length) {
+      onToast?.({ text: result.errors?.[0] ?? "No books found in file", isError: true });
+      return;
+    }
+    // Confirmation rule: anything AI touched (tier 2 mapping / tier 3 repair)
+    // is previewed before import; recognized clean formats import directly.
+    if (result.aiUsed) {
+      setPendingImport(result);
+      return;
+    }
+    await importParsed(result.books, result.sourceLabel, { note: result.note, skippedRows: result.errors?.length ?? 0 });
+  };
+
+  const confirmPendingImport = async () => {
+    const r = pendingImport;
+    setPendingImport(null);
+    if (!r) return;
+    await importParsed(r.books, r.sourceLabel, { note: r.note, skippedRows: r.errors?.length ?? 0 });
   };
 
   const section = "border-t border-zinc-100 pt-4 mt-4 dark:border-zinc-800";
@@ -240,7 +258,12 @@ export default function Settings({
       {/* ---- import / export ---- */}
       <div className={section}>
         <div className={labelCls}>Import & export</div>
-        {importing ? (
+        {analyzing ? (
+          <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
+            <Spinner />
+            <span>Reading your file…</span>
+          </div>
+        ) : importing ? (
           <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
             <Spinner />
             <span>Importing… {importing.done}/{importing.total}</span>
@@ -262,8 +285,9 @@ export default function Settings({
               Enrich imports with covers, narrators & durations (slower)
             </label>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Accepts an Audible Library Extractor export (CSV or JSON), a Goodreads CSV, or a Libby timeline export (CSV or JSON) —
-              format is detected automatically. Imports are additive, duplicates are skipped, and series are grouped together.
+              Accepts Audible Library Extractor (CSV or JSON), Goodreads, StoryGraph, or Libby exports — format is detected
+              automatically. Any other book CSV is mapped with AI (you'll confirm before it imports). Imports are additive,
+              duplicates are skipped, and series are grouped together.
             </p>
             <ImportGuides />
           </>
@@ -390,6 +414,10 @@ export default function Settings({
           </div>
           <button onClick={() => setTriage(null)} className={`${btnPrimary} w-full`}>Got it</button>
         </Dialog>
+      )}
+
+      {pendingImport && (
+        <ImportConfirm result={pendingImport} onConfirm={confirmPendingImport} onCancel={() => setPendingImport(null)} />
       )}
 
     </Dialog>

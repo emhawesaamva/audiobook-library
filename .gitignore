@@ -30,4 +30,5 @@ Thumbs.db
 
 scripts/ui-test/shots/
 scripts/ui-test/mobile-shots/
+scripts/ui-test/fixtures/
 .vercel

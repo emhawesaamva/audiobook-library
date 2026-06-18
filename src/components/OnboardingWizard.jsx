@@ -5,11 +5,9 @@ import { useState, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, inputCls, labelCls, Spinner } from "./shared.jsx";
 import ImportGuides from "./ImportGuides.jsx";
 import PasteImport from "./PasteImport.jsx";
+import ImportConfirm from "./ImportConfirm.jsx";
 import { runImport } from "../lib/importBooks.js";
-import {
-  detectImportFormat, parseGoodreadsCSV, parseLibbyCSV, parseLibbyJSON,
-  parseAudibleJSON, parseAudibleCSV,
-} from "../lib/csv.js";
+import { parseImportFile } from "../lib/importPipeline.js";
 import { Upload, ArrowRight, ArrowLeft, Check, Sparkles } from "lucide-react";
 
 const AGE_GROUPS = [
@@ -28,6 +26,8 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
   const [importing, setImporting] = useState(null); // { total, done }
   const [importedCount, setImportedCount] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false); // AI cascade running on an uploaded file
+  const [pendingImport, setPendingImport] = useState(null); // AI-assisted result awaiting confirmation
   const fileRef = useRef(null);
 
   const next1 = async () => {
@@ -69,20 +69,35 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
     e.target.value = "";
     if (!file) return;
     const text = await file.text();
-    const format = detectImportFormat(text, file.name.toLowerCase());
-    const { books: parsed, errors, note } =
-      format === "goodreads" ? parseGoodreadsCSV(text)
-      : format === "libby" ? parseLibbyCSV(text)
-      : format === "libby-json" ? parseLibbyJSON(text)
-      : format === "audible" ? parseAudibleJSON(text)
-      : format === "audible-csv" ? parseAudibleCSV(text)
-      : { books: [], errors: ["Unrecognized file — expected a Goodreads CSV, Libby export, or Audible Library Extractor export"] };
-    if (!parsed.length) {
-      onToast?.({ text: errors[0] ?? "No books found in file", isError: true });
+
+    setAnalyzing(true);
+    let result;
+    try {
+      result = await parseImportFile(text, file.name);
+    } catch (err) {
+      setAnalyzing(false);
+      onToast?.({ text: `Couldn't read that file: ${err.message}`, isError: true });
       return;
     }
-    const sourceLabel = format === "goodreads" ? "Goodreads" : (format === "audible" || format === "audible-csv") ? "Audible" : "Libby";
-    await doImport(parsed, sourceLabel, note);
+    setAnalyzing(false);
+
+    if (!result.books.length) {
+      onToast?.({ text: result.errors?.[0] ?? "No books found in file", isError: true });
+      return;
+    }
+    // Confirmation rule: anything AI touched is previewed before import.
+    if (result.aiUsed) {
+      setPendingImport(result);
+      return;
+    }
+    await doImport(result.books, result.sourceLabel, result.note);
+  };
+
+  const confirmPendingImport = async () => {
+    const r = pendingImport;
+    setPendingImport(null);
+    if (!r) return;
+    await doImport(r.books, r.sourceLabel, r.note);
   };
 
   return (
@@ -152,11 +167,16 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
       {step === 3 && (
         <div className="space-y-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            Bring your books over from Audible, Goodreads, or Libby — or skip for now and the AI librarian will
-            add a couple of popular titles to get you started.
+            Bring your books over from Audible, Goodreads, StoryGraph, or Libby — any other book CSV works too, and
+            you can skip for now and let the AI librarian add a couple of popular titles to get you started.
           </p>
 
-          {importing ? (
+          {analyzing ? (
+            <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
+              <Spinner />
+              <span>Reading your file…</span>
+            </div>
+          ) : importing ? (
             <div className="flex items-center gap-3 rounded-lg border border-zinc-300/90 p-3 text-sm dark:border-zinc-700">
               <Spinner />
               <span>Importing… {importing.done}/{importing.total}</span>
@@ -191,11 +211,15 @@ export default function OnboardingWizard({ profile, books, onRename, onAgeGroupC
 
           <div className="flex items-center justify-between gap-2 pt-2">
             <button onClick={() => setStep(2)} className={btnSecondary}><ArrowLeft className="h-4 w-4" /> Back</button>
-            <button onClick={onClose} disabled={!!importing} className={btnPrimary}>
+            <button onClick={onClose} disabled={!!importing || analyzing} className={btnPrimary}>
               {importedCount > 0 ? "Finish" : <><Sparkles className="h-4 w-4" /> Skip &amp; explore</>}
             </button>
           </div>
         </div>
+      )}
+
+      {pendingImport && (
+        <ImportConfirm result={pendingImport} onConfirm={confirmPendingImport} onCancel={() => setPendingImport(null)} />
       )}
     </Dialog>
   );
