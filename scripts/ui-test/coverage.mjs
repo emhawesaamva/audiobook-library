@@ -121,6 +121,12 @@ if (STUB) {
   console.log("external APIs STUBBED (USE_REAL_AI=1 to run live)");
 }
 
+// Outbound links (Libby, Audible, Goodreads) are target=_blank. Clicking one
+// spawns a real tab that would try to load an external site; discard it so the
+// suite stays offline and deterministic. The click still registers, which is
+// what the hold prompt keys off.
+ctx.on("page", (p) => p.close().catch(() => {}));
+
 // The one-time "This book is on Audible" promo pops up asynchronously after the
 // first add and overlays everything. Auto-dismiss it (permanently, via "Already
 // a subscriber") whenever it appears so it never blocks a later action.
@@ -301,6 +307,48 @@ try {
   });
 
   // ---------- STATS ----------
+  // ---------- LIBBY HOLDS ----------
+  // No library code is configured on a fresh account, so HoldModal makes no
+  // availability call and the wait field starts empty — deterministic without
+  // depending on the stubbed metadata endpoint.
+  await step("hold-prompt-opens-from-libby-link", async () => {
+    await addBookManually("Piranesi", { status: "wanttoread" });
+    await page.getByText("Piranesi").first().waitFor({ state: "visible" });
+    await page.getByText("Piranesi").first().click(); // opens the action menu
+    await page.getByRole("link", { name: "Libby" }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "visible" });
+  });
+
+  await step("hold-save", async () => {
+    await page.locator("#hold-weeks").fill("10");
+    await page.getByRole("button", { name: /Yes, save hold/ }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "hidden" });
+  });
+
+  await step("holds-tab-lists-the-hold", async () => {
+    await page.getByRole("button", { name: "Libby Holds" }).click();
+    await page.getByText("Piranesi").first().waitFor({ state: "visible" });
+    // Saved today, so the full 10 weeks should still be outstanding.
+    await page.getByText("10", { exact: true }).first().waitFor({ state: "visible" });
+    await page.getByText(/weeks left/i).first().waitFor({ state: "visible" });
+  });
+
+  await step("hold-edit-updates-the-countdown", async () => {
+    await page.locator('button[aria-label^="Edit hold"]').first().click();
+    await page.getByText("Edit hold").first().waitFor({ state: "visible" });
+    await page.locator("#hold-weeks").fill("4");
+    await page.getByRole("button", { name: "Save hold" }).click();
+    await page.getByText("Edit hold").first().waitFor({ state: "hidden" });
+    await page.getByText("4", { exact: true }).first().waitFor({ state: "visible" });
+  });
+
+  await step("hold-clear-empties-the-tab", async () => {
+    await page.locator('button[aria-label^="Edit hold"]').first().click();
+    await page.getByRole("button", { name: "Clear hold" }).click();
+    await page.getByText(/No holds recorded yet/i).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+  });
+
   await step("stats-goals", async () => {
     await page.getByRole("button", { name: "Stats", exact: true }).click();
     await page.getByPlaceholder("e.g. 24").first().waitFor({ state: "visible" });
