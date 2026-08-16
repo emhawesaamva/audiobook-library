@@ -46,6 +46,11 @@ Run in order against a fresh Supabase project (SQL editor, or `node scripts/run-
 
 1. `supabase/schema.sql` — tables, triggers, seed settings
 2. `supabase/rls.sql` — row-level security policies
+3. `supabase/add-holds.sql` — `books.hold_weeks` / `hold_date` for the Holds tab
+
+Migrations are additive and idempotent, so an existing database only needs the
+files it hasn't seen yet (step 3 onward). Until `add-holds.sql` is applied,
+recording a hold fails with a missing-column error.
 
 Then in the Supabase dashboard:
 
@@ -84,6 +89,15 @@ Tests run automatically in a pipeline ([GitHub Actions](.github/workflows/ci.yml
 **The gate.** Branch protection on `master` requires *both* suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
 
 **The E2E test database.** E2E runs against a **dedicated, non-production** Supabase project (never production — the suite creates and deletes throwaway accounts using an admin key, which would be destructive against real data). Its `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` are stored as GitHub repository secrets. To stand up a fresh test project, apply `supabase/schema.sql`, then `supabase/rls.sql`, then `supabase/public-read.sql` (see [Database setup](#database-setup-one-time)).
+
+Local `.env` points at **production** so `npm run dev` works against real data, which is exactly the wrong target for these suites. `assertNotProduction()` in `scripts/common.js` therefore refuses to run `test:e2e` / `test:integration` against a known production project ref, before any request is made. Override the target per-run:
+
+```bash
+VITE_SUPABASE_URL=https://<test-ref>.supabase.co \
+SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e
+```
+
+`ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/common.js`.
 
 `npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) are intentionally **not** in the per-PR gate — run them manually. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
 

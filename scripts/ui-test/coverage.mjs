@@ -17,7 +17,9 @@ import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { authAdmin, findUserByEmail } from "../common.js";
+import { authAdmin, findUserByEmail, assertNotProduction } from "../common.js";
+
+assertNotProduction("the E2E coverage suite");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, "shots", "coverage");

@@ -7,7 +7,7 @@ import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
 
-export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, readOnly, onClose }) {
+export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, onLibbyHold, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -33,6 +33,22 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
   const item = "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer";
   const queued = book.queue_position != null;
 
+  // Libby opens in its own tab either way; for books you haven't borrowed yet
+  // we also ask whether a hold was placed. The click is never intercepted —
+  // the prompt is raised alongside the navigation, not instead of it.
+  const holdable = onLibbyHold && ["recommended", "wanttoread"].includes(getStatus(book));
+  const libbyLink = (
+    <a
+      className={item}
+      href={libbySearchUrl(book, libbyKey)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => { onClose(); if (holdable) onLibbyHold(book); }}
+    >
+      <Library className="h-3.5 w-3.5" /> Libby
+    </a>
+  );
+
   return (
     <div ref={ref} onClick={(e) => e.stopPropagation()}
       className="absolute right-1 top-8 z-20 w-52 animate-fade-up rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
@@ -44,7 +60,7 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
             </button>
           )}
           <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
-          <a className={item} href={libbySearchUrl(book, libbyKey)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Library className="h-3.5 w-3.5" /> Libby</a>
+          {libbyLink}
           <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
         </>
       ) : confirming ? (
@@ -76,7 +92,7 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
             </button>
           )}
           <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
-          <a className={item} href={libbySearchUrl(book, libbyKey)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Library className="h-3.5 w-3.5" /> Libby</a>
+          {libbyLink}
           <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
           <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
         </>
@@ -91,7 +107,7 @@ function seriesMeta(book) {
 }
 
 // ---- view: card grid ----
-export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -134,13 +150,13 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
           </div>
         </div>
       </div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }
 
 // ---- view: cover grid ----
-export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -162,7 +178,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
         </div>
         {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
       </div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
       <div className="mt-1.5 truncate text-xs font-medium">{book.title}</div>
       <div className="flex items-center justify-between">
         <span className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{book.author}</span>
@@ -173,7 +189,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
 }
 
 // ---- view: list row ----
-export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, readOnly }) {
+export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -197,7 +213,7 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
       </div>
       <div className="shrink-0 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
       <div className="shrink-0 text-right"><StatusChip status={status} /></div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }

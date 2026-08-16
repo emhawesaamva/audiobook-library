@@ -118,8 +118,38 @@ export function audibleSearchUrl(book, affiliateTag = null) {
 export function libbySearchUrl(book, libraryKey) {
   const q = encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim());
   return libraryKey
-    ? `https://libbyapp.com/search/${encodeURIComponent(libraryKey)}/search/scope-auto/query-${q}/page-1`
+    ? `https://libbyapp.com/search/${encodeURIComponent(libraryKey)}/search/scope-auto/audiobooks/query-${q}/language-en/page-1`
     : `https://www.overdrive.com/search?q=${q}`;
+}
+
+// ---- library holds ----
+// A hold is an indicator, not a status: hold_weeks (the wait Libby quoted) plus
+// hold_date (when it was recorded). Remaining wait counts down from there, so a
+// 10-week hold placed 2 weeks ago reads 8 weeks. Both columns move together —
+// either missing means no hold.
+export function hasHold(book) {
+  return !!(book?.hold_date && Number(book?.hold_weeks) > 0);
+}
+
+// Whole weeks left before the quoted wait elapses. 0 means the estimate has
+// run out (the book may be ready); the hold is kept until the user clears it.
+export function holdWeeksLeft(book) {
+  if (!hasHold(book)) return null;
+  // Parse as local midnight — "2026-08-16" alone parses as UTC and can land on
+  // the previous day west of Greenwich, shifting every countdown by a day.
+  const ready = new Date(`${book.hold_date}T00:00:00`);
+  ready.setDate(ready.getDate() + Number(book.hold_weeks) * 7);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((ready - today) / 86_400_000);
+  return days <= 0 ? 0 : Math.ceil(days / 7);
+}
+
+// Section heading for the Holds tab. Expired holds group first under wording
+// that stays honest about the estimate: Libby's quote is a guess, not a promise.
+export function holdGroupLabel(weeksLeft) {
+  if (weeksLeft === 0) return "These may be ready now";
+  return weeksLeft === 1 ? "1 week" : `${weeksLeft} weeks`;
 }
 
 export function goodreadsSearchUrl(book) {

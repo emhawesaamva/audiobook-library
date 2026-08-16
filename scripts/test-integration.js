@@ -4,9 +4,10 @@
 // Cleans up its test users afterwards (cascade removes all their data).
 //
 // Usage: node scripts/test-integration.js
-import { authAdmin, findUserByEmail, loadEnv } from "./common.js";
+import { authAdmin, findUserByEmail, loadEnv, assertNotProduction } from "./common.js";
 
 const { url: BASE } = loadEnv();
+assertNotProduction("test-integration.js");
 const ANON = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 let failures = 0;
