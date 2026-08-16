@@ -711,10 +711,10 @@ export default function App({ session, onSignOut }) {
       key={t}
       onClick={() => setTab(t)}
       aria-current={tab === t ? "page" : undefined}
-      className={`relative -mb-px border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
+      className={`relative -mb-px rounded-t-lg border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
         tab === t
-          ? "border-accent-500 font-semibold text-zinc-900 dark:text-white"
-          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200"
+          ? "border-accent-500 bg-accent-50 font-semibold text-zinc-900 dark:bg-accent-700/15 dark:text-white"
+          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
       }`}
     >
       {label}
@@ -843,9 +843,9 @@ export default function App({ session, onSignOut }) {
           </div>
           <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
             {tabBtn("library", "Library")}
+            {tabBtn("recommend", "Recommend")}
             {tabBtn("holds", "Libby Holds")}
             {tabBtn("stats", "Stats")}
-            {tabBtn("recommend", "Recommend")}
             {account?.is_admin && tabBtn("admin", "Admin")}
           </nav>
         </div>
