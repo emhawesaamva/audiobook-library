@@ -703,12 +703,18 @@ export default function App({ session, onSignOut }) {
   // an explainer card alongside them until the user adds a book of their own.
   const showRecExplainer = books.length === 2 && books.every((b) => getStatus(b) === "recommended");
 
+  // Underline tabs: the row sits on a shared baseline and the active tab's
+  // marker sits *on* that line (-mb-px), so the selected tab reads as connected
+  // to the panel below rather than as one more button in a row of buttons.
   const tabBtn = (t, label) => (
     <button
       key={t}
       onClick={() => setTab(t)}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
-        tab === t ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      aria-current={tab === t ? "page" : undefined}
+      className={`relative -mb-px border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
+        tab === t
+          ? "border-accent-500 font-semibold text-zinc-900 dark:text-white"
+          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200"
       }`}
     >
       {label}
@@ -835,9 +841,9 @@ export default function App({ session, onSignOut }) {
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.loved}</strong> loved</span>
             </div>
           </div>
-          <nav className="flex gap-1">
+          <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
             {tabBtn("library", "Library")}
-            {tabBtn("holds", "Holds")}
+            {tabBtn("holds", "Libby Holds")}
             {tabBtn("stats", "Stats")}
             {tabBtn("recommend", "Recommend")}
             {account?.is_admin && tabBtn("admin", "Admin")}
@@ -1083,6 +1089,7 @@ export default function App({ session, onSignOut }) {
           editing={hold.editing}
           suggestWeeks={hold.suggestWeeks}
           willAdd={!hold.book.id}
+          libbyKey={prefs.libby_key}
           onSave={(weeks) => saveHold(hold.book, weeks)}
           onClear={() => clearHold(hold.book)}
           onClose={() => setHold(null)}
