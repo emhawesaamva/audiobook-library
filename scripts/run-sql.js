@@ -2,7 +2,7 @@
 // Management API. Auth: SUPABASE_ACCESS_TOKEN in .env/environment, or the
 // token stored by `supabase login` (%APPDATA%/supabase/access-token).
 //
-// Usage: node scripts/run-sql.js supabase/schema.sql
+// Usage: node scripts/run-sql.js supabase/migrations/20260603000000_schema.sql
 //        node scripts/run-sql.js --query "select count(*) from books"
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
