@@ -248,3 +248,18 @@ export async function getAccount(accountId) {
   throwOn(error);
   return data;
 }
+
+// ---- feedback (contact us) ----
+
+export async function createFeedback(email, message) {
+  const { error } = await supabase.from("feedback").insert({ email, message });
+  throwOn(error);
+}
+
+// Admin only — RLS restricts select to public.is_admin().
+export async function listFeedback() {
+  const { data, error } = await supabase
+    .from("feedback").select("*").order("created_at", { ascending: false });
+  throwOn(error);
+  return data;
+}
