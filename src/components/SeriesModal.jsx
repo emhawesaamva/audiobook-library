@@ -52,7 +52,7 @@ function SeriesQualityCurve({ books }) {
   );
 }
 
-export default function SeriesModal({ series, recommenders = [], allTags = [], libbyKey, affiliateTag, onClose, onSaveSub, onDeleteSub, onEditHeader, onDeleteSeries, onAddVolumes, onToast }) {
+export default function SeriesModal({ series, recommenders = [], allTags = [], libbyKey, affiliateTag, onLibbyHold, onClose, onSaveSub, onDeleteSub, onEditHeader, onDeleteSeries, onAddVolumes, onToast }) {
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
@@ -175,6 +175,7 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], l
                     affiliateTag={affiliateTag}
                     onEdit={() => setSubForm(b)}
                     onDelete={async () => { await onDeleteSub(b.id); onToast?.({ text: `Deleted "${b.title}"` }); }}
+                    onLibbyHold={onLibbyHold}
                     onClose={() => setOpenMenu(null)}
                   />
                 )}
