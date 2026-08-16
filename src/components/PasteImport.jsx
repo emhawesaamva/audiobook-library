@@ -3,7 +3,7 @@
 // confirms the list. On confirm, hands the chosen rows to onConfirm(rows),
 // where rows are { title, author, status }.
 import { useState } from "react";
-import { Dialog, btnPrimary, btnSecondary, inputCls, Spinner, StatusChip } from "./shared.jsx";
+import { Dialog, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, Spinner, StatusChip } from "./shared.jsx";
 import { identifyBookList } from "../lib/ai.js";
 import { ClipboardList } from "lucide-react";
 
@@ -90,7 +90,7 @@ function PasteDialog({ paste, setPaste, identifying, onIdentify, onConfirm }) {
           </div>
           <div className="mb-3 flex items-center gap-2 text-sm">
             <span className="text-zinc-600 dark:text-zinc-400">Import unmarked books as</span>
-            <select value={defaultStatus} onChange={(e) => setDefaultStatus(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
+            <select value={defaultStatus} onChange={(e) => setDefaultStatus(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
               <option value="wanttoread">Want to Listen</option>
               <option value="read">Read</option>
               <option value="reading">Listening</option>
