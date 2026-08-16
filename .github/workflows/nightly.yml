@@ -1,0 +1,65 @@
+# The two suites the per-PR gate deliberately leaves out, on a schedule so they
+# run at all. Before this, `test:mobile` and `test:integration` executed only
+# when someone remembered — and `test:mobile` is what put a stray test account
+# into the production auth table, because nothing stopped it pointing there.
+#
+# Both run against a local Supabase stack, same as E2E: no credentials, no
+# hosted project to pause, nothing that can reach production.
+name: Nightly
+
+on:
+  schedule:
+    # 07:00 UTC — after the working day in most timezones, so a red result is
+    # waiting rather than interrupting.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  extended:
+    name: Integration + mobile audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # mobile-audit.mjs launches Chrome via channel:"chrome", as coverage does.
+      - run: npx playwright install --with-deps chrome
+
+      - name: Start local Supabase
+        run: npx supabase start
+      - name: Apply migrations
+        run: npx supabase db reset --no-seed
+      - name: Point .env at the local stack
+        run: npm run db:use-local
+
+      # RLS isolation, the signup trigger, admin self-promotion — none of which
+      # the UI suite covers, and all of which are security-relevant.
+      - name: Integration (RLS, auth, admin)
+        run: npm run test:integration
+
+      # Runs even if integration failed, so one red suite doesn't hide the
+      # other's result. An earlier failure still fails the job — `if: always()`
+      # only decides whether this step runs, it does not clear the outcome.
+      # Both external APIs are stubbed inside the audit, so no keys are needed.
+      - name: Mobile audit
+        if: always()
+        run: |
+          npm run dev &
+          npx wait-on -t 60000 http://localhost:5173
+          npm run test:mobile
+
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-audit-shots
+          path: scripts/ui-test/mobile-shots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Supabase status on failure
+        if: failure()
+        run: npx supabase status || true
