@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { assertNotProductionUrl } from '../production-refs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, 'mobile-shots');
@@ -80,6 +81,10 @@ const env = Object.fromEntries(
 );
 const SUPA_URL = env.VITE_SUPABASE_URL;
 const SECRET = env.SUPABASE_SECRET_KEY;
+
+// ensureTestAccount() below deletes and recreates its account on every run, so
+// pointed at production it destroys a real one. Guard before any of that.
+if (SUPA_URL && SECRET) assertNotProductionUrl(SUPA_URL, "the mobile audit");
 
 // Create the test account via the Supabase admin API if it doesn't exist yet.
 // The on_auth_user_created trigger then creates the matching accounts row, so a

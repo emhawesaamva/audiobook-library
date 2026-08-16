@@ -11,8 +11,16 @@ alter table public.rejected_recommendations enable row level security;
 alter table public.library_snapshots        enable row level security;
 alter table public.user_settings            enable row level security;
 alter table public.app_settings             enable row level security;
-alter table public.audiobook_library        enable row level security;
 alter table public.feedback                 enable row level security;
+
+-- The legacy table predates schema.sql and is never created by it, so it is
+-- absent on any fresh install (including the local Docker stack). Guard the
+-- lock so this file still runs end to end where there is nothing to lock.
+do $$ begin
+  if to_regclass('public.audiobook_library') is not null then
+    execute 'alter table public.audiobook_library enable row level security';
+  end if;
+end $$;
 
 -- ---- accounts ----
 create policy accounts_select on public.accounts for select to authenticated
