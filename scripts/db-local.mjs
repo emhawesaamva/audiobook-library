@@ -41,17 +41,48 @@ const status = Object.fromEntries(
 );
 
 const apiUrl = status.API_URL;
-// Newer CLIs expose publishable/secret; older ones only anon/service_role.
-const publishable = status.PUBLISHABLE_KEY || status.ANON_KEY;
 const secret = status.SECRET_KEY || status.SERVICE_ROLE_KEY;
 
-if (!apiUrl || !publishable || !secret) {
+if (!apiUrl || !secret) {
   console.error("`supabase status` did not report the expected keys. Got:\n" + Object.keys(status).join(", "));
   process.exit(1);
 }
 
+// The CLI reports both a modern publishable key and a legacy JWT anon key, and
+// which one the local GoTrue actually accepts varies with CLI version and
+// config. Writing the wrong one produces a 401 on every auth call — visible
+// only as a wall of timed-out UI steps much later. So try each against a real
+// request and keep the one that works.
+async function keyWorks(key) {
+  try {
+    const r = await fetch(`${apiUrl}/auth/v1/settings`, { headers: { apikey: key } });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+const candidates = [
+  ["PUBLISHABLE_KEY", status.PUBLISHABLE_KEY],
+  ["ANON_KEY", status.ANON_KEY],
+].filter(([, v]) => v);
+
+let publishable = null, chosen = null;
+for (const [name, key] of candidates) {
+  if (await keyWorks(key)) { publishable = key; chosen = name; break; }
+  console.log(`${name} rejected by ${apiUrl}/auth/v1/settings`);
+}
+
+if (!publishable) {
+  console.error(
+    `No usable anon key. Tried: ${candidates.map(([n]) => n).join(", ") || "none reported"}.\n` +
+    "Is the local stack healthy? `npx supabase status`"
+  );
+  process.exit(1);
+}
+
 console.log(`API URL:     ${apiUrl}`);
-console.log(`publishable: ${publishable.slice(0, 12)}…`);
+console.log(`publishable: ${publishable.slice(0, 12)}… (from ${chosen})`);
 console.log(`secret:      ${secret.slice(0, 12)}…`);
 
 if (printOnly) process.exit(0);
