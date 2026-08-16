@@ -48,14 +48,17 @@ if (!apiUrl || !secret) {
   process.exit(1);
 }
 
-// The CLI reports both a modern publishable key and a legacy JWT anon key, and
-// which one the local GoTrue actually accepts varies with CLI version and
-// config. Writing the wrong one produces a 401 on every auth call — visible
-// only as a wall of timed-out UI steps much later. So try each against a real
-// request and keep the one that works.
+// The CLI reports both a legacy JWT anon key and a modern publishable key.
+// supabase-js sends the key twice: as `apikey`, and as `Authorization: Bearer`.
+// A `sb_publishable_…` key clears the gateway on the apikey header but is not a
+// JWT, so local GoTrue rejects the Bearer half and every auth call 401s — which
+// surfaces only as a wall of timed-out UI steps minutes later. The legacy anon
+// key is a real JWT, so prefer it and probe a route that exercises both headers.
 async function keyWorks(key) {
   try {
-    const r = await fetch(`${apiUrl}/auth/v1/settings`, { headers: { apikey: key } });
+    const r = await fetch(`${apiUrl}/rest/v1/`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
     return r.ok;
   } catch {
     return false;
@@ -63,8 +66,8 @@ async function keyWorks(key) {
 }
 
 const candidates = [
-  ["PUBLISHABLE_KEY", status.PUBLISHABLE_KEY],
   ["ANON_KEY", status.ANON_KEY],
+  ["PUBLISHABLE_KEY", status.PUBLISHABLE_KEY],
 ].filter(([, v]) => v);
 
 let publishable = null, chosen = null;
