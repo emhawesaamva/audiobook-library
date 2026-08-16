@@ -77,7 +77,7 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
         {editing
           ? "Update the wait Libby quoted, or clear the hold if it came through or you cancelled it."
-          : "If you placed a hold, record the wait Libby quoted and this book moves to your Holds tab, counting down from today."}
+          : "If you placed a hold, record the wait Libby quoted and this book moves to your Libby Holds tab, counting down from today."}
         {willAdd && !editing && (
           <> It&rsquo;ll be added to your library as <strong>Want to Listen</strong>.</>
         )}
