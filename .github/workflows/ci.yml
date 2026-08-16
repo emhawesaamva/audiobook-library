@@ -57,6 +57,10 @@ jobs:
         run: npx supabase db reset --no-seed
       - name: Point .env at the local stack
         run: npm run db:use-local
+      # Prints the real status/body for the admin-create → sign-in → insert path.
+      # A PostgREST 403 in a browser console carries no detail; this does.
+      - name: Diagnose local stack
+        run: node scripts/diagnose-local.mjs
       - name: Start dev server and run E2E
         run: |
           npm run dev &
