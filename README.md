@@ -25,7 +25,7 @@ Sign in with Google (or email/password), create one or more **libraries** (per p
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS v4 |
 | Auth | Supabase Auth (Google OAuth + email/password) |
-| Database | Supabase Postgres with RLS (`supabase/schema.sql`, `supabase/rls.sql`) |
+| Database | Supabase Postgres with RLS (`supabase/migrations/`) |
 | AI | Claude API (Sonnet for recommendations, Haiku for identification) via serverless proxy |
 | Metadata | Audible catalog API (narrator/runtime/series/covers), Open Library + iTunes fallbacks via `api/metadata.js` |
 | Hosting | Vercel (static build + serverless functions in `api/`) |
@@ -42,20 +42,33 @@ The Vite dev server proxies `/v1/*` to Anthropic (key injected server-side) and 
 
 ## Database setup (one-time)
 
-Run in order against a fresh Supabase project (SQL editor, or `node scripts/run-sql.js <file>` with a `SUPABASE_ACCESS_TOKEN`):
+Schema lives in `supabase/migrations/`, applied in filename order. Two ways to
+get a database:
 
-1. `supabase/schema.sql` — tables, triggers, seed settings
-2. `supabase/rls.sql` — row-level security policies
-3. `supabase/add-holds.sql` — `books.hold_weeks` / `hold_date` for the Holds tab
+**Local (recommended for development and tests).** Needs Docker running:
 
-Migrations are additive and idempotent, so an existing database only needs the
-files it hasn't seen yet (step 3 onward). Until `add-holds.sql` is applied,
-recording a hold fails with a missing-column error.
+```bash
+npm run db:start      # boot Postgres + auth + PostgREST + Studio in Docker
+npm run db:reset      # apply supabase/migrations/* onto a clean database
+npm run db:use-local  # point .env at the local stack (backs up your hosted .env)
+```
 
-Then in the Supabase dashboard:
+`npm run db:stop` shuts it down. Studio is at http://127.0.0.1:54323.
+
+**Hosted project.** Run the files in `supabase/migrations/` in filename order
+against a fresh Supabase project (SQL editor, or `node scripts/run-sql.js <file>`
+with a `SUPABASE_ACCESS_TOKEN`), then in the dashboard:
 
 1. **Auth → Providers**: enable **Email**, and **Google** (needs a Google Cloud OAuth client; authorized redirect URI is `https://YOUR_PROJECT.supabase.co/auth/v1/callback`)
 2. **Auth → URL Configuration**: Site URL = your production URL; add `http://localhost:5173` to additional redirect URLs
+
+Migrations are additive and idempotent, so an existing database only needs the
+files it hasn't seen yet.
+
+`supabase/add-feedback-table.sql` and `supabase/lock-legacy-table.sql` sit
+outside `migrations/` deliberately — they are one-shot patches for the
+already-live database, and would fail on a fresh one where `schema` already
+covers them.
 
 ## Scripts
 
@@ -88,16 +101,26 @@ Tests run automatically in a pipeline ([GitHub Actions](.github/workflows/ci.yml
 
 **The gate.** Branch protection on `master` requires *both* suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
 
-**The E2E test database.** E2E runs against a **dedicated, non-production** Supabase project (never production — the suite creates and deletes throwaway accounts using an admin key, which would be destructive against real data). Its `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` are stored as GitHub repository secrets. To stand up a fresh test project, apply `supabase/schema.sql`, then `supabase/rls.sql`, then `supabase/public-read.sql` (see [Database setup](#database-setup-one-time)).
+**The E2E database.** E2E runs against a **local Supabase stack in Docker**, started by the CI job itself — no hosted project, no repo secrets, no free-tier pausing. Each run gets a clean database from `supabase/migrations/`, so runs cannot contaminate each other.
 
-Local `.env` points at **production** so `npm run dev` works against real data, which is exactly the wrong target for these suites. `assertNotProduction()` in `scripts/common.js` therefore refuses to run `test:e2e` / `test:integration` against a known production project ref, before any request is made. Override the target per-run:
+Run it locally the same way:
+
+```bash
+npm run db:start && npm run db:reset && npm run db:use-local
+npm run dev &
+npm run test:e2e
+```
+
+This replaced a hosted test project that the free-tier idle policy had paused. The suite could not connect, reported `0/0 steps passed`, and **exited 0** — so the E2E check went green while testing nothing, for any change, indefinitely. `coverage.mjs` now exits non-zero when the suite aborts or when no steps ran, so that failure mode is loud.
+
+**Guarding production.** Local `.env` points at production so `npm run dev` works against real data, which is exactly the wrong target for these suites — they create and *delete* real auth users. `scripts/production-refs.js` holds the production refs, and `test:e2e`, `test:integration`, and `test:mobile` all refuse to run against one before making any request. Override per-run:
 
 ```bash
 VITE_SUPABASE_URL=https://<test-ref>.supabase.co \
 SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e
 ```
 
-`ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/common.js`.
+`ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/production-refs.js`.
 
 `npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) are intentionally **not** in the per-PR gate — run them manually. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
 

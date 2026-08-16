@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { refFromUrl, assertNotProductionUrl } from "./production-refs.js";
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -33,34 +34,18 @@ const baseHeaders = {
   "Content-Type": "application/json",
 };
 
-// Production project refs. The E2E and integration suites sign up and delete
-// throwaway accounts through the admin API; pointed at production that deletes
-// real accounts and cascades their whole library away. `.env` legitimately
-// points at production for `npm run dev`, so the guard lives here rather than
-// relying on whoever edits the file to remember.
-const PRODUCTION_REFS = new Set(["lschyxipktswvmicodij"]);
+// Re-exported from production-refs.js so scripts that already import common.js
+// keep working; that module is side-effect-free and is the single source of
+// truth for which refs are production.
+export { PRODUCTION_REFS, refFromUrl, isProductionUrl } from "./production-refs.js";
 
 export function projectRef() {
-  return new URL(BASE).hostname.split(".")[0];
+  return refFromUrl(BASE);
 }
 
 // Call at the top of any script that creates or destroys accounts.
 export function assertNotProduction(scriptName = "this script") {
-  const ref = projectRef();
-  if (!PRODUCTION_REFS.has(ref)) return ref;
-  if (process.env.ALLOW_PRODUCTION_WRITES === "1") {
-    console.warn(`WARNING: ${scriptName} running against PRODUCTION (${ref}) — ALLOW_PRODUCTION_WRITES=1 was set.`);
-    return ref;
-  }
-  console.error(
-    `Refusing to run ${scriptName} against the production project (${ref}).\n` +
-    `It creates and deletes real auth users, which cascades away real libraries.\n\n` +
-    `Point VITE_SUPABASE_URL and SUPABASE_SECRET_KEY at the dedicated test project\n` +
-    `("Library Test"), e.g.:\n` +
-    `  VITE_SUPABASE_URL=https://<test-ref>.supabase.co SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e\n\n` +
-    `Set ALLOW_PRODUCTION_WRITES=1 only if you genuinely mean to touch production.`
-  );
-  process.exit(1);
+  return assertNotProductionUrl(BASE, scriptName);
 }
 
 export async function rest(path, { method = "GET", body, headers = {} } = {}) {
