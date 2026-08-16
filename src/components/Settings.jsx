@@ -2,7 +2,7 @@
 // CSV/JSON export, and account info. The library dropdown at the top selects
 // which library the panel configures (it also switches the active library).
 import { useState, useEffect, useRef } from "react";
-import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
+import { Dialog, btnPrimary, btnSecondary, btnDanger, inputCls, selectCls, selectArrowStyle, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
 import { booksToCSV, download } from "../lib/csv.js";
 import { parseImportFile } from "../lib/importPipeline.js";
 import ImportGuides from "./ImportGuides.jsx";
@@ -212,7 +212,8 @@ export default function Settings({
         <select
           value={profile.id}
           onChange={(e) => onSelectProfile(e.target.value)}
-          className={inputCls}
+          className={selectCls}
+          style={selectArrowStyle}
         >
           {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>

@@ -15,7 +15,7 @@ import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import AudiblePromo from "./components/AudiblePromo.jsx";
 import OnboardingWizard from "./components/OnboardingWizard.jsx";
-import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
+import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./components/shared.jsx";
 import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -94,6 +94,56 @@ const crowdRating = (b) =>
     Number(b.goodreads_rating) || 0,
     ...(b.books ?? []).map((c) => Number(c.goodreads_rating) || 0)
   );
+
+// Sorting by anything other than status/rating orders books by a value that
+// isn't otherwise visible on the card (crowd rating, date added, first
+// letter, length) — so those sorts get section headings to surface it.
+// Bucketing must stay monotonic with each comparator in `shown` below so
+// same-bucket entries land adjacently and headings never repeat.
+function sortGroupLabel(sortBy, b) {
+  switch (sortBy) {
+    case "crowd": {
+      const r = crowdRating(b);
+      if (!(r > 0)) return "Crowd: unrated";
+      return `Crowd: ${(Math.round(r * 2) / 2).toFixed(1).replace(/\.0$/, "")}`;
+    }
+    case "title": {
+      const c = (b.title ?? "").trim()[0]?.toUpperCase() ?? "";
+      return `Title: ${/[A-Z]/.test(c) ? c : "#"}`;
+    }
+    case "author": {
+      const c = (b.author ?? "").trim()[0]?.toUpperCase() ?? "";
+      return `Author: ${/[A-Z]/.test(c) ? c : "#"}`;
+    }
+    case "recent": {
+      if (!b.created_at) return "Added: unknown";
+      return `Added: ${new Date(b.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`;
+    }
+    case "duration": {
+      if (b.is_series) return "Length: series";
+      const m = b.duration_minutes;
+      if (!m) return "Length: unknown";
+      const h = Math.floor(m / 60);
+      if (h < 5) return "Length: under 5h";
+      if (h < 10) return "Length: 5–10h";
+      if (h < 15) return "Length: 10–15h";
+      if (h < 20) return "Length: 15–20h";
+      return "Length: 20h+";
+    }
+    default: // status, rating — already visible on every card, no heading
+      return null;
+  }
+}
+
+function GroupHeading({ label, grid = false }) {
+  return (
+    <div
+      className={`${grid ? "col-span-full mb-1.5 mt-5 px-0.5 first:mt-0" : "border-b border-zinc-100 bg-zinc-50/70 px-3 py-1.5 dark:border-zinc-800/60 dark:bg-zinc-900/40"} text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500`}
+    >
+      {label}
+    </div>
+  );
+}
 
 export default function App({ session, onSignOut }) {
   const uid = session.user.id;
@@ -301,20 +351,27 @@ export default function App({ session, onSignOut }) {
   // ---- mutations ----
   const saveBook = async (fields, { targetSeriesId } = {}) => {
     const isNew = !fields.id;
+    let created = null;
     if (fields.id) {
       const prev = books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).find((b) => b.id === fields.id);
       await db.updateBook(fields.id, withAutoDates(fields, prev));
     } else if (targetSeriesId) {
       const series = books.find((b) => b.id === targetSeriesId);
-      await db.createBook({
+      created = await db.createBook({
         ...withAutoDates(fields), profile_id: activeId, parent_id: targetSeriesId,
         series_position: (series?.books?.length ?? 0) + 1,
       });
     } else {
-      await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
+      created = await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
     }
     await refreshBooks();
     if (isNew && !fields.is_series) maybePromoteAudible(fields);
+    // Manually creating a new (empty) series: close the form and jump
+    // straight into it, same as the "add entire series" flow below.
+    if (isNew && fields.is_series && created) {
+      setForm(null);
+      setSeriesOpen(created.id);
+    }
   };
 
   // Bulk import with automatic series grouping: rows may carry a transient
@@ -366,6 +423,8 @@ export default function App({ session, onSignOut }) {
       await db.createBooks(volumes.map((v) => ({ ...v, profile_id: activeId, parent_id: parent.id })));
     }
     await refreshBooks();
+    setForm(null);
+    setSeriesOpen(parent.id);
   };
 
   const guard = (fn) => async (...args) => {
@@ -535,6 +594,22 @@ export default function App({ session, onSignOut }) {
     return () => obs.disconnect();
   });
   const page = useMemo(() => shown.slice(0, visibleCount), [shown, visibleCount]);
+
+  // Interleave section headings into the page whenever the active sort
+  // exposes info not otherwise shown on the card (see sortGroupLabel).
+  const pageRows = useMemo(() => {
+    let prevLabel;
+    const rows = [];
+    for (const b of page) {
+      const label = sortGroupLabel(sortBy, b);
+      if (label != null && label !== prevLabel) {
+        rows.push({ type: "heading", label, key: `h-${rows.length}-${label}` });
+        prevLabel = label;
+      }
+      rows.push({ type: "book", book: b });
+    }
+    return rows;
+  }, [page, sortBy]);
 
   const stats = useMemo(() => {
     const read = books.filter((b) => getStatus(b) === "read");
@@ -778,13 +853,13 @@ export default function App({ session, onSignOut }) {
                     </button>
                   )}
                 </div>
-                <select value={genre} onChange={(e) => setGenre(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={genre} onChange={(e) => setGenre(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   {genres.map((g) => <option key={g} value={g}>{g === "all" ? "All genres" : g}</option>)}
                 </select>
-                <select value={minRating} onChange={(e) => setMinRating(Number(e.target.value))} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={minRating} onChange={(e) => setMinRating(Number(e.target.value))} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   <option value={0}>Any rating</option><option value={4.5}>4.5★+</option><option value={4}>4★+</option><option value={3}>3★+</option>
                 </select>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
                 </select>
                 {(filter !== "all" || genre !== "all" || minRating !== 0 || sortBy !== "status" || search) && (
@@ -836,7 +911,11 @@ export default function App({ session, onSignOut }) {
             ) : view === "covers" ? (
               <>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-                  {page.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} grid />
+                      : <BookCoverTile key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="covers" />}
                 </div>
                 <div ref={sentinelRef} />
@@ -844,7 +923,11 @@ export default function App({ session, onSignOut }) {
             ) : view === "list" ? (
               <>
                 <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                  {page.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} />
+                      : <BookListRow key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="list" />}
                 </div>
                 <div ref={sentinelRef} />
@@ -852,7 +935,11 @@ export default function App({ session, onSignOut }) {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} grid />
+                      : <BookCardGrid key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="cards" />}
                 </div>
                 <div ref={sentinelRef} />

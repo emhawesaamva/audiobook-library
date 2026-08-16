@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import supabase from "../lib/supabase.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./BookCard.jsx";
 import Stats from "./Stats.jsx";
-import { Stars, StatusChip, Cover } from "./shared.jsx";
+import { Stars, StatusChip, Cover, selectArrowStyle } from "./shared.jsx";
 import {
   getStatus, calcSeriesRating, fmtDuration,
   audibleSearchUrl, goodreadsSearchUrl, flattenBooks,
@@ -409,7 +409,8 @@ export default function PublicProfile({ profileId }) {
               </div>
               <div className="ml-auto flex items-center gap-1.5">
                 <select value={sort} onChange={(e) => setSort(e.target.value)}
-                  className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900 cursor-pointer">
+                  className="appearance-none rounded-md border border-zinc-300 bg-white py-1.5 pl-2 pr-7 text-xs dark:border-zinc-700 dark:bg-zinc-900 cursor-pointer"
+                  style={selectArrowStyle}>
                   <option value="added">Recently added</option>
                   <option value="title">Title</option>
                   <option value="author">Author</option>

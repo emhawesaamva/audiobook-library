@@ -3,7 +3,7 @@
 // runtime, cover, and series. When a result belongs to a series, one click
 // fetches all volumes for a bulk "add entire series".
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Dialog, Stars, Cover, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
+import { Dialog, Stars, Cover, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./shared.jsx";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
 import { GENRE_GROUPS, STATUS_LABEL } from "../lib/bookUtils.js";
 import { Heart } from "lucide-react";
@@ -179,12 +179,17 @@ export default function BookForm({
           }))
         );
         onToast?.({ text: `Added ${seriesPanel.title} (${volumes.length} books)` });
+        // Caller closes the dialog and opens the new series.
+      } else if (isNew && f.is_series) {
+        await onSave({ ...f, recommended_by: f.recommended_by || null }, { targetSeriesId });
+        onToast?.({ text: `Created series "${f.title}"` });
+        // Caller closes the dialog and opens the new series.
       } else {
         await onSave({ ...f, recommended_by: f.recommended_by || null }, { targetSeriesId });
         onToast?.({ text: isNew ? `Added "${f.title}"` : "Saved" });
+        if (isNew) resetForNext();
+        else onClose();
       }
-      if (isNew) resetForNext();
-      else onClose();
     } catch (e) {
       onToast?.({ text: `Save failed: ${e.message}`, isError: true });
     }
@@ -195,9 +200,9 @@ export default function BookForm({
   const showDnf = f.status === "dnf";
 
   return (
-    <Dialog title={isNew ? "Add Book" : `Edit ${f.is_series ? "Series" : "Book"}`} onClose={onClose} wide={!!seriesPanel}>
-      {/* ---- metadata search (new books only) ---- */}
-      {isNew && !seriesPanel && (
+    <Dialog title={isNew ? (f.is_series ? "New Series" : "Add Book") : `Edit ${f.is_series ? "Series" : "Book"}`} onClose={onClose} wide={!!seriesPanel}>
+      {/* ---- metadata search (new standalone books only) ---- */}
+      {isNew && !seriesPanel && !f.is_series && (
         <div className="relative mb-4">
           <label className={labelCls}>Search Audible</label>
           <div className="relative">
@@ -238,6 +243,27 @@ export default function BookForm({
                 </button>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- manual series creation toggle (new top-level entries only) ---- */}
+      {isNew && !isSub && !seriesPanel && (
+        <div className="mb-4">
+          {f.is_series ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5 text-sm dark:border-accent-700/40 dark:bg-accent-700/10">
+              <span>Creating a new series — add volumes to it afterward.</span>
+              <button onClick={() => s("is_series", false)} className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 cursor-pointer">
+                ← single book instead
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setPicked(null); setResults(null); setQ(""); s("is_series", true); }}
+              className="text-xs font-medium text-accent-600 hover:text-accent-700 cursor-pointer"
+            >
+              + Create a new series manually
+            </button>
           )}
         </div>
       )}
@@ -285,7 +311,7 @@ export default function BookForm({
           </div>
           <div className="mb-3 grid grid-cols-2 gap-3">
             <Field label="Genre">
-              <select value={f.genre} onChange={(e) => s("genre", e.target.value)} className={inputCls}>
+              <select value={f.genre} onChange={(e) => s("genre", e.target.value)} className={selectCls} style={selectArrowStyle}>
                 {Object.entries(GENRE_GROUPS).map(([group, list]) => group ? <optgroup key={group} label={group}>{list.map((g) => <option key={g}>{g}</option>)}</optgroup> : list.map((g) => <option key={g}>{g}</option>))}
               </select>
             </Field>
@@ -314,7 +340,7 @@ export default function BookForm({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Genre">
-              <select value={f.genre ?? "Other"} onChange={(e) => s("genre", e.target.value)} className={inputCls}>
+              <select value={f.genre ?? "Other"} onChange={(e) => s("genre", e.target.value)} className={selectCls} style={selectArrowStyle}>
                 {Object.entries(GENRE_GROUPS).map(([group, list]) => group ? <optgroup key={group} label={group}>{list.map((g) => <option key={g}>{g}</option>)}</optgroup> : list.map((g) => <option key={g}>{g}</option>))}
               </select>
             </Field>
@@ -326,7 +352,7 @@ export default function BookForm({
           {!f.is_series && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Status">
-                <select value={f.status ?? "wanttoread"} onChange={(e) => s("status", e.target.value)} className={inputCls}>
+                <select value={f.status ?? "wanttoread"} onChange={(e) => s("status", e.target.value)} className={selectCls} style={selectArrowStyle}>
                   {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </Field>
@@ -365,7 +391,7 @@ export default function BookForm({
 
           {isNew && !isSub && !f.is_series && seriesList.length > 0 && (
             <Field label="Add to existing series">
-              <select value={targetSeriesId} onChange={(e) => setTargetSeriesId(e.target.value)} className={inputCls}>
+              <select value={targetSeriesId} onChange={(e) => setTargetSeriesId(e.target.value)} className={selectCls} style={selectArrowStyle}>
                 <option value="">— Library (top level) —</option>
                 {seriesList.map((sr) => <option key={sr.id} value={sr.id}>{sr.title}</option>)}
               </select>
@@ -447,7 +473,7 @@ export default function BookForm({
 
       <div className="mt-5 flex gap-2">
         <button onClick={save} disabled={saving || (!seriesPanel && !f.title.trim())} className={`${btnPrimary} flex-1`}>
-          {saving ? <Spinner /> : seriesPanel ? `Add ${seriesPanel.checked.size} books` : isNew ? "Add" : "Save"}
+          {saving ? <Spinner /> : seriesPanel ? `Add ${seriesPanel.checked.size} books` : isNew ? (f.is_series ? "Create Series" : "Add") : "Save"}
         </button>
         <button onClick={onClose} className={btnSecondary}>{isNew ? "Done" : "Cancel"}</button>
       </div>
