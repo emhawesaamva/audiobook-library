@@ -35,6 +35,7 @@ const STUB = process.env.USE_REAL_AI !== "1";
 const results = [];
 const consoleErrors = [];
 let current = "startup";
+let fatal = null; // set when the suite body throws, so the report can exit non-zero
 
 async function step(name, fn) {
   current = name;
@@ -415,6 +416,7 @@ try {
     await page.locator("input[type=email]").waitFor({ state: "visible", timeout: 15000 });
   });
 } catch (e) {
+  fatal = e;
   console.log(`\nFATAL: ${e.message}`);
   await page.screenshot({ path: path.join(SHOTS, "FATAL.png"), fullPage: true }).catch(() => {});
 } finally {
@@ -428,4 +430,18 @@ console.log("\n\n========== COVERAGE RESULTS ==========");
 for (const r of results) console.log(`${r.status.padEnd(5)} ${r.name}${r.detail ? " — " + r.detail : ""}`);
 console.log(`\n${pass}/${results.length} steps passed`);
 if (consoleErrors.length) { console.log(`\nConsole/page errors (${consoleErrors.length}):`); consoleErrors.slice(0, 20).forEach((e) => console.log("  " + e)); }
+
+// A suite that aborted before running anything used to satisfy
+// `pass === results.length` as 0 === 0 and exit 0, so CI reported a green E2E
+// check for a run that tested nothing — the gate passed unconditionally for
+// months while the test database was paused. Success now requires that steps
+// actually ran and that nothing threw out of the suite body.
+if (fatal) {
+  console.log(`\nFAILED: suite aborted — ${fatal.message}`);
+  process.exit(1);
+}
+if (!results.length) {
+  console.log("\nFAILED: no steps ran. The suite reached the report without executing anything.");
+  process.exit(1);
+}
 process.exit(pass === results.length ? 0 : 1);

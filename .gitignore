@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+# Written by `npm run db:use-local` when it swaps .env to the local stack.
+.env.hosted-backup
 
 # Dependencies
 node_modules/
