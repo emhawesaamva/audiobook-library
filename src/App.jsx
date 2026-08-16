@@ -15,8 +15,9 @@ import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import AudiblePromo from "./components/AudiblePromo.jsx";
 import OnboardingWizard from "./components/OnboardingWizard.jsx";
+import ContactModal from "./components/ContactModal.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, HelpCircle, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -167,6 +168,7 @@ export default function App({ session, onSignOut }) {
   const [form, setForm] = useState(null);          // {book} | null
   const [seriesOpen, setSeriesOpen] = useState(null); // series id | null
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [onboarding, setOnboarding] = useState(false); // welcome framing in settings after creating a library
@@ -437,6 +439,15 @@ export default function App({ session, onSignOut }) {
     if (getStatus(book) === "recommended") db.addRejected(activeId, book.title).catch(() => {});
     await refreshBooks();
     setToast({ text: `Deleted "${book.title}"` });
+  });
+
+  // Deleting the series header cascades (books.parent_id is ON DELETE
+  // CASCADE), so every volume in it goes too — SeriesModal warns first.
+  const removeSeries = guard(async (series) => {
+    await db.deleteBook(series.id);
+    await refreshBooks();
+    setSeriesOpen(null);
+    setToast({ text: `Deleted "${series.title}" and its books` });
   });
 
   // ---- up-next queue ----
@@ -745,6 +756,11 @@ export default function App({ session, onSignOut }) {
               />
             </span>
             <ToolbarButton
+              label="Contact us"
+              icon={<HelpCircle className="h-4 w-4 shrink-0" />}
+              onClick={() => setContactOpen(true)}
+            />
+            <ToolbarButton
               label="Settings"
               icon={<SettingsIcon className="h-4 w-4 shrink-0" />}
               onClick={() => setSettingsOpen(true)}
@@ -1007,6 +1023,7 @@ export default function App({ session, onSignOut }) {
           affiliateTag={appSettings.affiliate_tag || null}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
+          onDeleteSeries={() => removeSeries(activeSeries)}
           onSaveSub={async (id, fields) => {
             if (id) await db.updateBook(id, withAutoDates(fields));
             else await db.createBook({
@@ -1067,6 +1084,14 @@ export default function App({ session, onSignOut }) {
           onAudibleSubscriberChange={(v) => savePrefs({ audible_subscriber: v })}
           onClose={() => { setSettingsOpen(false); setOnboarding(false); }}
           onSignOut={onSignOut}
+          onToast={setToast}
+        />
+      )}
+
+      {contactOpen && (
+        <ContactModal
+          email={session.user.email}
+          onClose={() => setContactOpen(false)}
           onToast={setToast}
         />
       )}

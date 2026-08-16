@@ -12,6 +12,7 @@ alter table public.library_snapshots        enable row level security;
 alter table public.user_settings            enable row level security;
 alter table public.app_settings             enable row level security;
 alter table public.audiobook_library        enable row level security;
+alter table public.feedback                 enable row level security;
 
 -- ---- accounts ----
 create policy accounts_select on public.accounts for select to authenticated
@@ -84,3 +85,9 @@ create policy usettings_all on public.user_settings for all to authenticated
 create policy appsettings_read  on public.app_settings for select to anon, authenticated using (true);
 create policy appsettings_write on public.app_settings for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+
+-- ---- feedback: anyone can submit their own, only the admin can read ----
+create policy feedback_insert on public.feedback for insert to authenticated
+  with check (account_id = (select auth.uid()));
+create policy feedback_select on public.feedback for select to authenticated
+  using (public.is_admin());
