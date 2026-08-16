@@ -78,6 +78,7 @@ const BOOK_COLUMNS = new Set([
   "cover_url", "narrator", "duration_minutes", "description", "date_started",
   "date_finished", "isbn", "asin", "series_position", "progress_percent",
   "dnf_reason", "recommended_by", "queue_position", "reread_count", "tags",
+  "hold_weeks", "hold_date",
 ]);
 
 function clean(fields) {

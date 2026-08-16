@@ -4,12 +4,14 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
 import { searchBooks as metaSearch, resultToBook } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating, flattenBooks, sameTitle } from "./lib/bookUtils.js";
+import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold } from "./lib/bookUtils.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
 import SeriesModal from "./components/SeriesModal.jsx";
 import Recommend from "./components/Recommend.jsx";
 import Stats from "./components/Stats.jsx";
+import Holds from "./components/Holds.jsx";
+import HoldModal from "./components/HoldModal.jsx";
 import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
@@ -166,6 +168,7 @@ export default function App({ session, onSignOut }) {
   const [sortBy, setSortBy] = useState("status");
 
   const [form, setForm] = useState(null);          // {book} | null
+  const [hold, setHold] = useState(null);          // {book, editing} | null
   const [seriesOpen, setSeriesOpen] = useState(null); // series id | null
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -477,6 +480,55 @@ export default function App({ session, onSignOut }) {
     setToast({ text: queued ? "Removed from Up Next" : "Added to Up Next" });
   });
 
+  // ---- library holds ----
+  // A hold is an indicator, not a status. The one status side effect: a book
+  // you went and placed a hold on is plainly no longer just "recommended".
+  const saveHold = guard(async (book, weeks) => {
+    const stamp = { hold_weeks: weeks, hold_date: today() };
+    if (book.id) {
+      const patch = { ...stamp };
+      if (book.status === "recommended") patch.status = "wanttoread";
+      await db.updateBook(book.id, patch);
+    } else {
+      // Straight from the Recommend tab: the book isn't in the library yet, so
+      // the hold is what files it. Enrich first — a cover and duration matter
+      // on a shelf you'll be staring at for the next several weeks.
+      let enriched = {};
+      try {
+        const { results } = await metaSearch(`${book.title} ${book.author ?? ""}`, 3);
+        if (results[0]) enriched = resultToBook(results[0]);
+      } catch { /* metadata is best-effort */ }
+      await db.createBook({
+        profile_id: activeId,
+        author: book.author,
+        genre: book.genre || "Science Fiction",
+        subgenre: book.subgenre || "",
+        recommended_by: "AudioLib",
+        year: book.year ? Number(book.year) : null,
+        ...enriched,
+        title: enriched.title || book.title,
+        status: "wanttoread",
+        ...stamp,
+      });
+    }
+    await refreshBooks();
+    setHold(null);
+    setToast({ text: `Hold saved — about ${weeks} week${weeks === 1 ? "" : "s"}` });
+  });
+
+  const clearHold = guard(async (book) => {
+    await db.updateBook(book.id, { hold_weeks: null, hold_date: null });
+    await refreshBooks();
+    setHold(null);
+    setToast({ text: "Hold cleared" });
+  });
+
+  // Raised when a Libby link is opened for a book that isn't borrowed yet.
+  // Already holding it? Go straight to the editor rather than re-asking.
+  // `suggestWeeks` carries Libby's own reported wait from the Recommend tab.
+  const promptHold = (book, suggestWeeks = null) =>
+    setHold({ book, editing: hasHold(book), suggestWeeks });
+
   const startListening = guard(async (book) => {
     await db.updateBook(book.id, { status: "reading", date_started: today(), queue_position: null });
     await refreshBooks();
@@ -644,6 +696,7 @@ export default function App({ session, onSignOut }) {
     onDelete: () => removeBook(b),
     onOpen: b.is_series ? () => openSeries(b.id) : undefined,
     onQueueToggle: !b.is_series ? () => queueToggle(b) : undefined,
+    onLibbyHold: !b.is_series ? promptHold : undefined,
   });
 
   // A fresh library holds only the two auto-recommended starter titles — show
@@ -784,6 +837,7 @@ export default function App({ session, onSignOut }) {
           </div>
           <nav className="flex gap-1">
             {tabBtn("library", "Library")}
+            {tabBtn("holds", "Holds")}
             {tabBtn("stats", "Stats")}
             {tabBtn("recommend", "Recommend")}
             {account?.is_admin && tabBtn("admin", "Admin")}
@@ -964,6 +1018,14 @@ export default function App({ session, onSignOut }) {
           </>
         )}
 
+        {tab === "holds" && (
+          <Holds
+            books={books}
+            libbyKey={prefs.libby_key}
+            onEditHold={(book) => setHold({ book, editing: true })}
+          />
+        )}
+
         {tab === "stats" && (
           <Stats
             books={books}
@@ -984,6 +1046,7 @@ export default function App({ session, onSignOut }) {
             libbyKey={prefs.libby_key}
             affiliateTag={appSettings.affiliate_tag || null}
             onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
+            onLibbyHold={promptHold}
             onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); maybePromoteAudible(fields); }}
             onToast={setToast}
           />
@@ -1014,12 +1077,25 @@ export default function App({ session, onSignOut }) {
         />
       )}
 
+      {hold && (
+        <HoldModal
+          book={hold.book}
+          editing={hold.editing}
+          suggestWeeks={hold.suggestWeeks}
+          willAdd={!hold.book.id}
+          onSave={(weeks) => saveHold(hold.book, weeks)}
+          onClear={() => clearHold(hold.book)}
+          onClose={() => setHold(null)}
+        />
+      )}
+
       {activeSeries && (
         <SeriesModal
           series={activeSeries}
           recommenders={recommenders}
           allTags={allTags}
           libbyKey={prefs.libby_key}
+          onLibbyHold={promptHold}
           affiliateTag={appSettings.affiliate_tag || null}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
