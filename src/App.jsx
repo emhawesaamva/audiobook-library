@@ -1083,6 +1083,7 @@ export default function App({ session, onSignOut }) {
           editing={hold.editing}
           suggestWeeks={hold.suggestWeeks}
           willAdd={!hold.book.id}
+          libbyKey={prefs.libby_key}
           onSave={(weeks) => saveHold(hold.book, weeks)}
           onClear={() => clearHold(hold.book)}
           onClose={() => setHold(null)}

@@ -3,7 +3,7 @@
 // app just records them.
 import { Cover, StatusChip } from "./shared.jsx";
 import {
-  getStatus, fmtDuration, hasHold, holdWeeksLeft, holdGroupLabel, libbySearchUrl,
+  getStatus, hasHold, holdWeeksLeft, holdGroupLabel, libbySearchUrl,
 } from "../lib/bookUtils.js";
 import { Clock, Pencil, Library } from "lucide-react";
 
@@ -94,9 +94,6 @@ function HoldRow({ book, weeksLeft, libbyKey, onEditHold }) {
         </div>
       </div>
 
-      <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
-        {fmtDuration(book.duration_minutes) ?? ""}
-      </div>
       <div className="hidden shrink-0 sm:block"><StatusChip status={getStatus(book)} /></div>
 
       <div className="w-24 shrink-0 text-right">
