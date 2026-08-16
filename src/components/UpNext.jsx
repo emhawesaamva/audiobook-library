@@ -42,6 +42,7 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
     // opening the drawer never reflows the library behind it.
     <div
       ref={ref}
+      data-upnext-drawer=""
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`fixed left-0 top-1/2 z-40 flex max-h-[80vh] -translate-y-1/2 items-center transition-transform duration-300 ease-out ${
