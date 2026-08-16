@@ -122,10 +122,12 @@ SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e
 
 `ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/production-refs.js`.
 
-`npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) are intentionally **not** in the per-PR gate — run them manually. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
+**Nightly.** [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml) runs `npm run test:integration` (RLS isolation, the signup trigger, admin self-promotion) and `npm run test:mobile` at 07:00 UTC, against the same local stack, and uploads the mobile screenshots as an artifact. Both are too slow for the per-PR gate but previously ran only when someone remembered — `test:mobile` is how a stray test account reached the production auth table. `workflow_dispatch` triggers a run on demand.
+
+The live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual, since they spend real API credit. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
 
 ## To-do
 
-- [x] **Set up CI.** GitHub Actions (`.github/workflows/ci.yml`) runs `npm test` (unit + import logic) on pushes to `dev`/`master` and on PRs into `master`. The `npm run test:e2e` Playwright suite also runs on PRs into `master`, against a dedicated **non-production** Supabase test project (paid APIs stubbed). Branch protection on `master` requires both the unit suite and the E2E suite to pass before merging. `npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual. See `docs/TESTING.md` for the full test surface.
+- [x] **Set up CI.** GitHub Actions (`.github/workflows/ci.yml`) runs `npm test` (unit + import logic) on pushes to `dev`/`master` and on PRs into `master`. The `npm run test:e2e` Playwright suite also runs on PRs into `master`, against a **local Supabase stack in Docker** (paid APIs stubbed). Branch protection on `master` requires both the unit suite and the E2E suite to pass before merging. `npm run test:integration` and `npm run test:mobile` run nightly (`.github/workflows/nightly.yml`); the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual. See `docs/TESTING.md` for the full test surface.
 - [x] Confirm `GEMINI_API_KEY` is set in the Vercel project env so the Anthropic→Gemini fallback works in production.
 - [x] Open a PR `dev` → `master` to ship the StoryGraph + AI-assisted import work.
