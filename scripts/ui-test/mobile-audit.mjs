@@ -506,6 +506,11 @@ await step('11-card-menu', async () => {
     const vw = window.innerWidth, vh = window.innerHeight;
     const cand = [...document.querySelectorAll('div, ul')].filter((el) => {
       const cs = getComputedStyle(el);
+      // The Up Next drawer is fixed and mentions "Up Next" too, but it sits
+      // deliberately off-screen when closed — measuring it here would report a
+      // false overflow. Exclude it explicitly rather than relying on the action
+      // menu happening to come later in the DOM.
+      if (el.closest('[data-upnext-drawer]')) return false;
       return (cs.position === 'absolute' || cs.position === 'fixed') && el.querySelector('button') && /Up Next|Edit|Delete/i.test(el.textContent);
     });
     const el = cand[cand.length - 1];
