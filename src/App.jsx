@@ -758,7 +758,10 @@ export default function App({ session, onSignOut }) {
       className={`relative -mb-px rounded-t-lg border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
         tab === t
           ? "border-accent-500 bg-accent-50 font-semibold text-zinc-900 dark:bg-accent-700/15 dark:text-white"
-          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          // hover:bg must differ from the page itself — body is bg-zinc-100 in
+          // light mode, so hovering used to paint the tab the same colour as its
+          // background and read as nothing happening.
+          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
       }`}
     >
       {label}
