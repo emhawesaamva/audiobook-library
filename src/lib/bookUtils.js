@@ -164,3 +164,26 @@ export function placeholderHue(title) {
   for (const c of title ?? "") h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return PLACEHOLDER_HUES[h % PLACEHOLDER_HUES.length];
 }
+
+// ---- write-path shaping (used by db.js before every insert/update) ----
+
+const BOOK_COLUMNS = new Set([
+  "profile_id", "parent_id", "is_series", "title", "author", "genre", "subgenre",
+  "status", "rating", "loved", "notes", "year", "goodreads_rating", "goodreads_url",
+  "cover_url", "narrator", "duration_minutes", "description", "date_started",
+  "date_finished", "isbn", "asin", "series_position", "progress_percent",
+  "dnf_reason", "recommended_by", "queue_position", "reread_count", "tags",
+  "hold_weeks", "hold_date",
+  "libby_state", "libby_wait_days", "libby_checked_at",
+]);
+
+export function cleanBookFields(fields) {
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (BOOK_COLUMNS.has(k)) out[k] = v === "" ? null : v;
+  }
+  // Series headers keep rating/status NULL (derived from children).
+  if (out.is_series) { out.rating = null; out.status = null; }
+  if (out.rating != null && !(Number(out.rating) > 0)) out.rating = null;
+  return out;
+}
