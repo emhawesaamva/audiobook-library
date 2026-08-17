@@ -235,6 +235,18 @@ export async function libbyAvailability(libraryKey, title, author) {
   };
 }
 
+// Catalogue data (title search, series listings) is effectively static, so a
+// long edge cache is free. Availability is not, and a long TTL there is
+// actively harmful: it changes as copies are lent and returned, a deploy does
+// not invalidate it, and the client writes whatever it receives into its own
+// 24h cache. That compounded once already — the language fix shipped, edge
+// nodes kept serving the pre-fix answer, and the stale value was persisted for
+// another day, so users kept seeing a three-week wait for a book their library
+// does not own. The 24h client cache is the real cache; the edge only needs to
+// absorb bursts.
+const CACHE_CATALOGUE = "public, max-age=3600";
+const CACHE_AVAILABILITY = "public, max-age=60";
+
 // Connect/Vercel-compatible request handler.
 export async function handleMetadataRequest(req, res) {
   try {
@@ -243,16 +255,26 @@ export async function handleMetadataRequest(req, res) {
     const series = url.searchParams.get("series");
     const libby = url.searchParams.get("libby");
     let payload;
-    if (libby && q) payload = await libbyAvailability(libby, q, url.searchParams.get("author"));
-    else if (series) payload = await seriesVolumes(series);
+    let cache = CACHE_CATALOGUE;
+    if (libby && q) {
+      payload = await libbyAvailability(libby, q, url.searchParams.get("author"));
+      cache = CACHE_AVAILABILITY;
+    } else if (series) payload = await seriesVolumes(series);
     else if (q) payload = await searchBooks(q, Number(url.searchParams.get("limit")) || 8);
-    else { res.statusCode = 400; res.end(JSON.stringify({ error: "q or series required" })); return; }
+    else {
+      res.statusCode = 400;
+      res.setHeader("Cache-Control", "no-store");
+      res.end(JSON.stringify({ error: "q or series required" }));
+      return;
+    }
     res.setHeader("Content-Type", "application/json");
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cache-Control", cache);
     res.end(JSON.stringify(payload));
   } catch (err) {
     res.statusCode = 502;
     res.setHeader("Content-Type", "application/json");
+    // Never let a transient upstream failure be cached as if it were an answer.
+    res.setHeader("Cache-Control", "no-store");
     res.end(JSON.stringify({ error: err.message ?? "metadata lookup failed" }));
   }
 }

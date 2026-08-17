@@ -354,3 +354,45 @@ test("handleMetadataRequest returns 502 with the upstream error message when a l
     globalThis.fetch = realFetch;
   }
 });
+
+// ---- handleMetadataRequest: cache headers ----
+// Availability must not carry the catalogue's long TTL. It did once, and the
+// damage compounded: a deploy fixing the lookup could not invalidate the edge,
+// and the client persisted whatever it received into its own 24h cache.
+test("availability responses get a short TTL, catalogue responses a long one", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true, status: 200,
+    json: async () => ({ items: [], products: [], docs: [], results: [] }),
+  });
+  try {
+    const avail = fakeRes();
+    await handleMetadataRequest(fakeReq("/api/metadata?libby=fairfax&q=Piranesi&author=Susanna%20Clarke"), avail);
+    const ttl = Number(/max-age=(\d+)/.exec(avail.headers["Cache-Control"])?.[1]);
+    assert.ok(ttl <= 300, `availability TTL should be minutes, not hours (got ${ttl}s)`);
+
+    const search = fakeRes();
+    await handleMetadataRequest(fakeReq("/api/metadata?q=dune"), search);
+    assert.match(search.headers["Cache-Control"], /max-age=3600/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("errors and bad requests are never cached", async () => {
+  const bad = fakeRes();
+  await handleMetadataRequest(fakeReq("/api/metadata"), bad);
+  assert.equal(bad.statusCode, 400);
+  assert.equal(bad.headers["Cache-Control"], "no-store");
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("upstream exploded"); };
+  try {
+    const boom = fakeRes();
+    await handleMetadataRequest(fakeReq("/api/metadata?series=SERIESX"), boom);
+    assert.equal(boom.statusCode, 502);
+    assert.equal(boom.headers["Cache-Control"], "no-store", "a transient 502 must not be cached as an answer");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
