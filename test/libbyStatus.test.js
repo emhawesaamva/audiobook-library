@@ -68,7 +68,20 @@ test("libbyBadge switches from days to weeks at a fortnight", () => {
 
 test("libbyBadge covers the other states, and nothing when unchecked", () => {
   assert.equal(libbyBadge({ libby_state: "available" }).text, "Libby · available");
-  assert.equal(libbyBadge({ libby_state: "absent" }).text, "Not at your library");
+  assert.equal(libbyBadge({ libby_state: "absent" }).text, "Audible only");
   assert.equal(libbyBadge({}), null);
   assert.equal(libbyBadge(null), null);
+});
+
+test("a recorded hold outranks whatever the catalogue says", () => {
+  const held = { hold_weeks: 8, hold_date: "2026-08-01" };
+  assert.equal(libbyBadge(held).text, "Libby on hold");
+  assert.equal(libbyBadge({ ...held, libby_state: "available" }).text, "Libby on hold");
+  assert.equal(libbyBadge({ ...held, libby_state: "wait", libby_wait_days: 30 }).text, "Libby on hold");
+  assert.equal(libbyBadge({ ...held, libby_state: "absent" }).text, "Libby on hold");
+});
+
+test("a half-written or cleared hold does not claim one", () => {
+  assert.equal(libbyBadge({ hold_weeks: 8, hold_date: null, libby_state: "absent" }).text, "Audible only");
+  assert.equal(libbyBadge({ hold_weeks: null, hold_date: "2026-08-01", libby_state: "available" }).text, "Libby · available");
 });

@@ -1,6 +1,7 @@
 // Libby availability caching: which books need a lookup, and how an OverDrive
 // response becomes the three states we store. See the migration comment for why
 // there are three and not four.
+import { hasHold } from "./bookUtils.js";
 
 export const LIBBY_STATES = ["available", "wait", "absent"];
 
@@ -55,6 +56,9 @@ export function booksNeedingLibbyCheck(books, { now = Date.now(), limit = Infini
 // Short label for the badge. Days rather than weeks under a fortnight, because
 // "3 days" and "13 days" are different decisions; beyond that weeks read better.
 export function libbyBadge(book) {
+  // A recorded hold outranks whatever the catalogue says: you have already
+  // acted, so "available" or "12w wait" is no longer the useful fact.
+  if (hasHold(book)) return { tone: "hold", text: "Libby on hold" };
   switch (book?.libby_state) {
     case "available":
       return { tone: "available", text: "Libby · available" };
@@ -65,7 +69,9 @@ export function libbyBadge(book) {
       return { tone: "wait", text: `Libby · ~${Math.round(d / 7)}w wait` };
     }
     case "absent":
-      return { tone: "absent", text: "Not at your library" };
+      // The library doesn't carry it (and OverDrive search cannot tell us
+      // whether anyone does), so the actionable read is: buy it instead.
+      return { tone: "absent", text: "Audible only" };
     default:
       return null;
   }
