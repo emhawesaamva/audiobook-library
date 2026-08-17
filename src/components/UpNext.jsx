@@ -45,17 +45,17 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
       data-upnext-drawer=""
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`fixed left-0 top-1/2 z-40 flex max-h-[80vh] -translate-y-1/2 items-center transition-transform duration-300 ease-out ${
-        open ? "translate-x-0" : "-translate-x-72"
+      className={`fixed left-0 top-1/2 z-40 flex max-h-[88vh] -translate-y-1/2 items-center transition-transform duration-300 ease-out ${
+        open ? "translate-x-0" : "-translate-x-80"
       }`}
     >
       {/* panel */}
-      <div className="flex max-h-[80vh] w-72 flex-col overflow-hidden rounded-r-xl border border-l-0 border-accent-200/70 bg-white shadow-xl dark:border-accent-700/30 dark:bg-zinc-900">
-        <div className="flex items-center gap-2 border-b border-accent-200/60 bg-accent-50/60 px-3 py-2 dark:border-accent-700/20 dark:bg-accent-700/10">
-          <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-accent-700 dark:text-accent-400">
-            <ListMusic className="h-3.5 w-3.5" /> Up Next
+      <div className="flex max-h-[88vh] min-h-[22rem] w-80 flex-col overflow-hidden rounded-r-xl border border-l-0 border-accent-500/40 bg-white shadow-xl dark:bg-zinc-900">
+        <div className="flex items-center gap-2 bg-accent-500 px-3.5 py-2.5">
+          <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-zinc-900">
+            <ListMusic className="h-4 w-4" /> Up Next
           </span>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">{queue.length} queued</span>
+          <span className="text-xs font-medium text-zinc-900/70">{queue.length} queued</span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -93,14 +93,14 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
         onClick={() => setPinned((p) => !p)}
         aria-expanded={open}
         aria-label={`Up Next, ${queue.length} queued`}
-        className="flex cursor-pointer items-center gap-1.5 rounded-r-lg border border-l-0 border-accent-200/70 bg-accent-50 py-3 pl-1 pr-1.5 shadow-md transition-colors hover:bg-accent-100 dark:border-accent-700/30 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+        className="flex cursor-pointer items-center gap-1 rounded-r-lg bg-accent-500 py-6 pl-1.5 pr-2 shadow-lg transition-colors hover:bg-accent-400"
       >
-        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-700 [writing-mode:vertical-rl] dark:text-accent-400">
-          <ListMusic className="h-3.5 w-3.5 rotate-90" />
+        <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900 [writing-mode:vertical-rl]">
+          <ListMusic className="h-4 w-4 rotate-90" />
           Up Next
-          <span className="text-zinc-500 dark:text-zinc-400">{queue.length}</span>
+          <span className="font-semibold text-zinc-900/70">{queue.length}</span>
         </span>
-        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-accent-600 transition-transform duration-300 dark:text-accent-500 ${open ? "rotate-180" : ""}`} />
+        <ChevronRight className={`h-4 w-4 shrink-0 text-zinc-900 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
       </button>
     </div>
   );
