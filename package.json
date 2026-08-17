@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/csv.test.js test/ai-helpers.test.js test/importPipeline.test.js test/messages-core.test.js test/holds.test.js test/libbyStatus.test.js test/libbyAvailability.test.js",
+    "test": "node --test test/csv.test.js test/ai-helpers.test.js test/importPipeline.test.js test/messages-core.test.js test/holds.test.js test/libbyStatus.test.js test/libbyAvailability.test.js test/metadata-core.test.js test/bookUtils.test.js test/metadata.test.js",
     "test:e2e": "node scripts/ui-test/coverage.mjs",
     "test:mobile": "node scripts/ui-test/mobile-audit.mjs",
     "test:integration": "node scripts/test-integration.js",
