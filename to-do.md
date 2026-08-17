@@ -17,6 +17,19 @@ replaced: the Admin tab's user list and delete-user, `scripts/test-integration.j
 
 Dashboard → Project Settings → API keys → secret key.
 
+### Remove the leftover `chore/close-testing-gaps` worktree
+Local machine state rather than project work, noted here so it is not forgotten.
+The branch merged as PR #14 and its remote is deleted, so the worktree at
+`../AudioLib-io.chore-close-testing-gaps` holds nothing that master lacks —
+`git merge-base --is-ancestor` confirms it. It is clean, so nothing is lost:
+
+```bash
+git worktree remove ../AudioLib-io.chore-close-testing-gaps
+git branch -D chore/close-testing-gaps
+```
+
+Check `git worktree list` first, in case a session is still working in it.
+
 ### Install Docker for local test parity
 `npm run db:start`, `test:e2e`, `test:mobile` and `test:integration` all need the
 local Supabase stack, which needs Docker. Without it those suites only ever run in
