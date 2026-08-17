@@ -108,6 +108,7 @@ export function LibbyChip({ book, className = "" }) {
   const badge = libbyBadge(book);
   if (!badge) return null;
   const tone = {
+    hold: "bg-accent-500 text-zinc-900",
     available: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
     wait: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
     absent: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
