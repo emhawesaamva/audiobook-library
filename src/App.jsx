@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
-import { searchBooks as metaSearch, resultToBook } from "./lib/metadata.js";
+import { searchBooks as metaSearch, resultToBook, libbyAvailability } from "./lib/metadata.js";
 import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold } from "./lib/bookUtils.js";
+import { booksNeedingLibbyCheck, toLibbyState } from "./lib/libbyStatus.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
 import SeriesModal from "./components/SeriesModal.jsx";
@@ -352,6 +353,49 @@ export default function App({ session, onSignOut }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booksReady, activeId]);
+
+  // ---- Libby availability refresh ----
+  // Recommended / Want books carry a cached availability state so cards render
+  // instantly from the library load. Anything older than a day is refreshed in
+  // the background, a few at a time — this hits an undocumented OverDrive
+  // endpoint, so it stays deliberately unhurried and capped per visit.
+  const libbyChecked = useRef(new Set());
+  useEffect(() => {
+    const key = prefs.libby_key;
+    if (!booksReady || !activeId || !key) return;
+    const mark = `${activeId}:${key}`;
+    if (libbyChecked.current.has(mark)) return;
+    libbyChecked.current.add(mark);
+
+    const due = booksNeedingLibbyCheck(books, { limit: 40 });
+    if (!due.length) return;
+
+    const profileId = activeId;
+    (async () => {
+      const CONCURRENCY = 3;
+      let cursor = 0;
+      let changed = false;
+      const worker = async () => {
+        while (cursor < due.length) {
+          const book = due[cursor++];
+          if (activeIdRef.current !== profileId) return;
+          let patch;
+          try {
+            patch = toLibbyState(await libbyAvailability(key, book.title, book.author));
+          } catch {
+            continue; // transient; try again next visit rather than caching a lie
+          }
+          try {
+            await db.updateBook(book.id, { ...patch, libby_checked_at: new Date().toISOString() });
+            changed = true;
+          } catch { /* not worth surfacing — the badge just stays stale */ }
+        }
+      };
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+      if (changed && activeIdRef.current === profileId) await refreshBooks(profileId);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booksReady, activeId, prefs.libby_key]);
 
   // ---- mutations ----
   const saveBook = async (fields, { targetSeriesId } = {}) => {
