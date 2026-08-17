@@ -6,6 +6,7 @@ import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Libr
 import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
+import { libbyBadge } from "../lib/libbyStatus.js";
 
 export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, onLibbyHold, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
@@ -101,6 +102,23 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
   );
 }
 
+// Cached Libby availability, shown only where it answers a live question —
+// books you are considering, not ones you have already read.
+export function LibbyChip({ book, className = "" }) {
+  const badge = libbyBadge(book);
+  if (!badge) return null;
+  const tone = {
+    available: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+    wait: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
+    absent: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
+  }[badge.tone];
+  return (
+    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone} ${className}`}>
+      {badge.text}
+    </span>
+  );
+}
+
 function seriesMeta(book) {
   const n = book.books?.length ?? 0;
   return `${n} book${n === 1 ? "" : "s"}`;
@@ -140,6 +158,7 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
               {book.is_series
                 ? <span className="text-xs text-zinc-500 dark:text-zinc-400">{seriesMeta(book)}</span>
                 : book.duration_minutes && <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>}
+              <LibbyChip book={book} />
             </div>
             {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
             {book.status === "wanttoread" && Number(book.goodreads_rating) > 0 && Number(book.goodreads_rating) < 3.8 && (
@@ -175,6 +194,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
               Series
             </span>
           )}
+          <LibbyChip book={book} className="shadow" />
         </div>
         {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
       </div>
@@ -211,6 +231,7 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
       <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
         {book.is_series ? "" : fmtDuration(book.duration_minutes) ?? ""}
       </div>
+      <div className="hidden shrink-0 sm:block"><LibbyChip book={book} /></div>
       <div className="shrink-0 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
       <div className="shrink-0 text-right"><StatusChip status={status} /></div>
       {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
