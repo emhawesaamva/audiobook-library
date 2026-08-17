@@ -199,16 +199,31 @@ export async function seriesVolumes(seriesAsin) {
 
 // Audiobook availability at a Libby/OverDrive library, via the same public
 // "Thunder" API the libbyapp.com front-end uses. Keyless; best-effort.
+//
+// English only, and deliberately so. Without `language=en` the search happily
+// matches a foreign-language edition of the same title and reports *its*
+// availability: Fairfax owns the Spanish Piranesi (3 copies, ~19 day wait) but
+// not the English one, so an English-language shelf was told to expect a
+// three-week wait for a book its library cannot lend it at all. The Libby deep
+// links this app builds are already pinned to language-en; this matches them.
+const LIBBY_LANGUAGE = "en";
+
 export async function libbyAvailability(libraryKey, title, author) {
   const q = encodeURIComponent(`${title} ${author ?? ""}`.trim());
   const data = await jget(
-    `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(libraryKey)}/media?query=${q}&format=audiobook-overdrive,audiobook-mp3&perPage=10`
+    `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(libraryKey)}/media?query=${q}&format=audiobook-overdrive,audiobook-mp3&language=${LIBBY_LANGUAGE}&perPage=10`
   );
   const norm = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const target = norm(title);
   const hit = (data.items ?? []).find((i) => {
     const t = norm(i.title);
-    return t === target || t.startsWith(target) || target.startsWith(t);
+    if (!(t === target || t.startsWith(target) || target.startsWith(t))) return false;
+    // Belt and braces: if the language filter is ever ignored or renamed, a
+    // wrong-language match would silently return to reporting the wrong
+    // edition's wait. Records without a language list are let through rather
+    // than dropped, since absence is not evidence of a foreign edition.
+    const langs = (i.languages ?? []).map((l) => l?.id).filter(Boolean);
+    return langs.length === 0 || langs.includes(LIBBY_LANGUAGE);
   });
   if (!hit || !hit.isOwned) return { owned: false };
   return {
