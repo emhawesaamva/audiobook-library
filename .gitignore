@@ -34,3 +34,7 @@ scripts/ui-test/shots/
 scripts/ui-test/mobile-shots/
 scripts/ui-test/fixtures/
 .vercel
+
+# Local dev seed data (scripts/seed-local.mjs). A capture of a real library —
+# keep it off a public repo; `npm run db:capture` regenerates it locally.
+supabase/seed-data.json

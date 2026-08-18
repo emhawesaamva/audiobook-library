@@ -275,6 +275,32 @@ try {
     }
   });
 
+  // Desktop keeps click-through: one click both dismisses the open menu and
+  // opens the next card's. (Touch deliberately does not — see the mobile audit's
+  // card-menu-dismiss step.) Guards the document-mousedown path in ActionMenu.
+  await step("card-menu-switches-between-cards", async () => {
+    await page.locator('button[title="cards"]').click();
+    await page.waitForTimeout(300);
+    const menus = page.locator("[data-book-menu]");
+    const card = (t) => page.locator('[data-book-card="book"]').filter({ hasText: t }).first();
+
+    await card("Dune").click();
+    await menus.first().waitFor({ state: "visible" });
+    if (!(await card("Dune").locator("[data-book-menu]").isVisible()))
+      throw new Error("clicking a card did not open its own menu");
+
+    await card("Project Hail Mary").click();
+    await page.waitForTimeout(250);
+    const open = await menus.count();
+    if (open !== 1) throw new Error(`expected exactly 1 menu after switching cards, saw ${open}`);
+    if (!(await card("Project Hail Mary").locator("[data-book-menu]").isVisible()))
+      throw new Error("on desktop a click on a second card should open its menu, not just close the first");
+
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    if ((await menus.count()) !== 0) throw new Error("Escape did not close the action menu");
+  });
+
   // ---------- FILTERS / SEARCH / SORT ----------
   await step("filter-pills", async () => {
     await page.getByRole("button", { name: "Read", exact: true }).click();

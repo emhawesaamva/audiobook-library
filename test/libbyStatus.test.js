@@ -59,29 +59,40 @@ test("booksNeedingLibbyCheck honours the per-visit cap", () => {
 });
 
 test("libbyBadge switches from days to weeks at a fortnight", () => {
-  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 3 }).text, "Libby · ~3d wait");
-  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 13 }).text, "Libby · ~13d wait");
-  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 14 }).text, "Libby · ~2w wait");
-  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 160 }).text, "Libby · ~23w wait");
-  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: null }).text, "Libby · wait");
+  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 3 }).wait, "~3d wait");
+  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 13 }).wait, "~13d wait");
+  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 14 }).wait, "~2w wait");
+  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: 160 }).wait, "~23w wait");
+  assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: null }).wait, "wait");
+});
+
+// The pill renders `base` at every width and appends `wait` only from `sm` up,
+// so a waiting book must carry the estimate in `wait` and nowhere else —
+// otherwise a phone-width card would still show it.
+test("libbyBadge keeps the wait estimate out of the always-shown label", () => {
+  for (const d of [3, 13, 14, 160, null]) {
+    assert.equal(libbyBadge({ libby_state: "wait", libby_wait_days: d }).base, "Libby");
+  }
 });
 
 test("libbyBadge covers the other states, and nothing when unchecked", () => {
-  assert.equal(libbyBadge({ libby_state: "available" }).text, "Libby · available");
-  assert.equal(libbyBadge({ libby_state: "absent" }).text, "Audible only");
+  assert.deepEqual(libbyBadge({ libby_state: "available" }), { tone: "available", base: "Libby", wait: null });
+  assert.deepEqual(libbyBadge({ libby_state: "absent" }), { tone: "absent", base: "Audible only", wait: null });
   assert.equal(libbyBadge({}), null);
   assert.equal(libbyBadge(null), null);
 });
 
 test("a recorded hold outranks whatever the catalogue says", () => {
   const held = { hold_weeks: 8, hold_date: "2026-08-01" };
-  assert.equal(libbyBadge(held).text, "Libby on hold");
-  assert.equal(libbyBadge({ ...held, libby_state: "available" }).text, "Libby on hold");
-  assert.equal(libbyBadge({ ...held, libby_state: "wait", libby_wait_days: 30 }).text, "Libby on hold");
-  assert.equal(libbyBadge({ ...held, libby_state: "absent" }).text, "Libby on hold");
+  assert.equal(libbyBadge(held).base, "Libby on hold");
+  assert.equal(libbyBadge({ ...held, libby_state: "available" }).base, "Libby on hold");
+  const stillHeld = libbyBadge({ ...held, libby_state: "wait", libby_wait_days: 30 });
+  assert.equal(stillHeld.base, "Libby on hold");
+  assert.equal(stillHeld.wait, null); // the catalogue's estimate is dropped, not carried into the menu
+  assert.equal(libbyBadge({ ...held, libby_state: "absent" }).base, "Libby on hold");
 });
 
 test("a half-written or cleared hold does not claim one", () => {
-  assert.equal(libbyBadge({ hold_weeks: 8, hold_date: null, libby_state: "absent" }).text, "Audible only");
-  assert.equal(libbyBadge({ hold_weeks: null, hold_date: "2026-08-01", libby_state: "available" }).text, "Libby · available");
+  assert.equal(libbyBadge({ hold_weeks: 8, hold_date: null, libby_state: "absent" }).base, "Audible only");
+  assert.equal(libbyBadge({ hold_weeks: null, hold_date: "2026-08-01", libby_state: "available" }).base, "Libby");
 });

@@ -53,25 +53,30 @@ export function booksNeedingLibbyCheck(books, { now = Date.now(), limit = Infini
   return out;
 }
 
-// Short label for the badge. Days rather than weeks under a fortnight, because
-// "3 days" and "13 days" are different decisions; beyond that weeks read better.
+// Short label for the badge, split in two. `base` is what the pill always says;
+// `wait` is the estimate, which the pill only has room for on wider screens —
+// below the `sm` breakpoint it moves into the card's action menu instead.
+// Days rather than weeks under a fortnight, because "3 days" and "13 days" are
+// different decisions; beyond that weeks read better.
 export function libbyBadge(book) {
   // A recorded hold outranks whatever the catalogue says: you have already
   // acted, so "available" or "12w wait" is no longer the useful fact.
-  if (hasHold(book)) return { tone: "hold", text: "Libby on hold" };
+  if (hasHold(book)) return { tone: "hold", base: "Libby on hold", wait: null };
   switch (book?.libby_state) {
     case "available":
-      return { tone: "available", text: "Libby · available" };
+      // No qualifier: the tone already says available, and on a phone-width card
+      // the extra word is the difference between fitting and not.
+      return { tone: "available", base: "Libby", wait: null };
     case "wait": {
       const d = book.libby_wait_days;
-      if (d == null) return { tone: "wait", text: "Libby · wait" };
-      if (d < 14) return { tone: "wait", text: `Libby · ~${d}d wait` };
-      return { tone: "wait", text: `Libby · ~${Math.round(d / 7)}w wait` };
+      if (d == null) return { tone: "wait", base: "Libby", wait: "wait" };
+      if (d < 14) return { tone: "wait", base: "Libby", wait: `~${d}d wait` };
+      return { tone: "wait", base: "Libby", wait: `~${Math.round(d / 7)}w wait` };
     }
     case "absent":
       // The library doesn't carry it (and OverDrive search cannot tell us
       // whether anyone does), so the actionable read is: buy it instead.
-      return { tone: "absent", text: "Audible only" };
+      return { tone: "absent", base: "Audible only", wait: null };
     default:
       return null;
   }

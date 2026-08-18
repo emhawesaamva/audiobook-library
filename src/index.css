@@ -34,6 +34,24 @@ body {
   @apply bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans;
 }
 
+/* iOS Safari zooms the page in whenever a focused form control's text is under
+   16px, and the zoomed layout is what then overflows the viewport sideways. Our
+   controls are all text-sm (14px), so every tap on a field triggered it. Meeting
+   the threshold on phones is the fix that keeps pinch-to-zoom working — the
+   alternative, maximum-scale=1 on the viewport meta, prevents the zoom by taking
+   zooming away from everyone. Desktop keeps the tighter 14px.
+
+   Deliberately unlayered: Tailwind's utilities sit in a cascade layer, and
+   unlayered rules beat layered ones whatever the specificity, so this wins over
+   the `text-sm` on each input without needing !important. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }

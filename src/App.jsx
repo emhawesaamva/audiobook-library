@@ -901,7 +901,10 @@ export default function App({ session, onSignOut }) {
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.loved}</strong> loved</span>
             </div>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
+          {/* overflow-x alone computes overflow-y to `auto` too, and the active tab's
+              -mb-px overhang gives it exactly 1px to scroll — enough to jiggle under
+              a thumb. The strip is a horizontal scroller only. */}
+          <nav className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 dark:border-zinc-800">
             {tabBtn("library", "Library")}
             {tabBtn("recommend", "Recommend")}
             {tabBtn("holds", "Libby Holds")}
