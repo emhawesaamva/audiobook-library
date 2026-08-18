@@ -78,9 +78,18 @@ covers them.
 | `npm run migrate` | One-time legacy → relational migration (`OWNER_EMAIL=... npm run migrate`) |
 | `npm run verify-migration` | Verify migrated counts/fields against the legacy data |
 
-## Vercel environment variables
+## Environment variables
 
-`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (server-side), plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (bundled into the frontend).
+Where each one actually lives — worth checking here before hunting through
+`app_settings`, `vault.secrets`, or edge functions:
+
+| Variable | Local `.env` | Vercel | Notes |
+|---|---|---|---|
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | yes | yes | points at production in both; bundled into the frontend |
+| `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | yes | yes | server-side only; secret key is service role — bypasses RLS |
+| `ANTHROPIC_API_KEY` | yes | yes | |
+| `GEMINI_API_KEY` | placeholder locally | **yes** | fallback only fires on credit exhaustion |
+| `OWNER_EMAIL` | yes | no | local tooling only, one-time legacy migration |
 
 ## Automated testing
 

@@ -26,19 +26,9 @@ to the per-PR gate (#18), so this now runs on every PR rather than once a night.
 
 ## 2. Cleanup, safe to do any time
 
-### Document where each environment variable actually lives
-The README lists the variables but not their homes, and that ambiguity cost real
-time: `GEMINI_API_KEY` was hunted through `app_settings`, `vault.secrets` and edge
-functions before turning up in Vercel. A short table would prevent a repeat.
-
-| Variable | Local `.env` | Vercel | Notes |
-|---|---|---|---|
-| `VITE_SUPABASE_URL` / `_PUBLISHABLE_KEY` | yes | yes | points at production in both |
-| `SUPABASE_SECRET_KEY` | yes | yes | service role — bypasses RLS |
-| `ANTHROPIC_API_KEY` | yes | yes | |
-| `GEMINI_API_KEY` | placeholder | **yes** | fallback only fires on credit exhaustion |
-| `OWNER_EMAIL` | yes | no | one-time legacy migration |
-
+~~Document where each environment variable actually lives~~ — done 2026-08-18;
+table moved into README.md's "Environment variables" section (it was only
+sitting here as a draft before, never actually reaching the README).
 ~~Delete the three unused GitHub repo secrets~~ — done 2026-08-18
 (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`).
 ~~Decide the fate of `scripts/run-sql.js`~~ — done 2026-08-18; deleted along with
