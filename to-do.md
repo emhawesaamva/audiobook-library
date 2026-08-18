@@ -100,5 +100,8 @@ record's `languages` client-side precisely so a renamed parameter degrades to
   are deliberately out of scope — see the header comment in `coverage.mjs`.
 - **`libbySearchUrl`'s no-library fallback** points at `overdrive.com/search` with
   no language filter, while every other Libby link is pinned to `language-en`.
-- **Holds tab could show the live estimate** next to the recorded wait, which is
-  arguably the more useful number once a hold is weeks old. Deliberately not built.
+- ~~Holds tab could show the live estimate~~ — closed 2026-08-18, not just deferred:
+  `estimatedWaitDays` is a catalog-level "if you joined today" estimate, not the
+  user's actual queue position, which only their own logged-in Libby account can
+  see. A live refetch wouldn't track their personal countdown — it'd just be a
+  different, less relevant number than the recorded-at-hold-time wait.
