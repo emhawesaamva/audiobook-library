@@ -18,11 +18,9 @@ value — it's dashboard-only, one-time-view on rotation, so this can't be scrip
 
 Dashboard → Project Settings → API keys → secret key.
 
-### Delete the "Library Test" Supabase project
-Paused, obsolete now that CI runs locally, and occupying one of two free-tier
-active-project slots. The Supabase management API/MCP has no delete-project
-call (only pause/restore) — dashboard only: Settings → General → Delete project.
-
+~~Delete the "Library Test" Supabase project~~ — done; confirmed gone from
+`list_projects` (was done via dashboard — no delete-project call exists in the
+management API/MCP, only pause/restore).
 ~~Remove the leftover `chore/close-testing-gaps` worktree~~ — done 2026-08-18.
 ~~Install Docker for local test parity~~ — done 2026-08-18.
 ~~Confirm the first scheduled nightly run~~ — done; a `schedule`-triggered run
@@ -47,7 +45,6 @@ functions before turning up in Vercel. A short table would prevent a repeat.
 | `SUPABASE_SECRET_KEY` | yes | yes | service role — bypasses RLS |
 | `ANTHROPIC_API_KEY` | yes | yes | |
 | `GEMINI_API_KEY` | placeholder | **yes** | fallback only fires on credit exhaustion |
-| `SUPABASE_ACCESS_TOKEN` | placeholder | no | local tooling only; see above |
 | `OWNER_EMAIL` | yes | no | one-time legacy migration |
 
 ~~Delete the three unused GitHub repo secrets~~ — done 2026-08-18
