@@ -1,8 +1,5 @@
 # To-do
 
-Outstanding work, most consequential first. The README's own To-do section
-tracks completed milestones; this file is for what is still open.
-
 Last reviewed: 2026-08-18.
 
 ---
