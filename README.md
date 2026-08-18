@@ -49,11 +49,20 @@ get a database:
 
 ```bash
 npm run db:start      # boot Postgres + auth + PostgREST + Studio in Docker
-npm run db:reset      # apply supabase/migrations/* onto a clean database
+npm run db:reset      # apply supabase/migrations/* onto a clean database, then seed
 npm run db:use-local  # point .env at the local stack (backs up your hosted .env)
 ```
 
 `npm run db:stop` shuts it down. Studio is at http://127.0.0.1:54323.
+
+**Seeding the local stack.** A reset leaves you with an empty database and no way
+in, so `db:reset` finishes by running `scripts/seed-local.mjs`, which recreates a
+test account and its library and prints the sign-in details. The data comes from
+`supabase/seed-data.json` — gitignored, because a capture is somebody's real
+library. Arrange the books you want in the UI and run `npm run db:capture` to
+record them; every later reset restores exactly that. `npm run db:seed` re-applies
+without a reset. Without a seed file the script is a no-op, so a fresh clone still
+works. It refuses to run against the production project or any non-loopback URL.
 
 **Hosted project.** Run the files in `supabase/migrations/` in filename order
 against a fresh Supabase project (SQL editor, or the Supabase MCP), then in the
