@@ -9,15 +9,7 @@ Last reviewed: 2026-08-18.
 
 ## 1. Needs a person
 
-### Update `.env` with the rotated Supabase secret key
-The service-role key was rotated on 2026-08-17. The local `.env` still holds the
-old one, so anything reading `SUPABASE_SECRET_KEY` fails silently-ish until it is
-replaced: the Admin tab's user list and delete-user, `scripts/test-integration.js`,
-`scripts/ui-test/mobile-audit.mjs`, and `scripts/common.js`. No API exposes the
-value — it's dashboard-only, one-time-view on rotation, so this can't be scripted.
-
-Dashboard → Project Settings → API keys → secret key.
-
+~~Update `.env` with the rotated Supabase secret key~~ — done 2026-08-18.
 ~~Delete the "Library Test" Supabase project~~ — done; confirmed gone from
 `list_projects` (was done via dashboard — no delete-project call exists in the
 management API/MCP, only pause/restore).
