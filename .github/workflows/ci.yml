@@ -37,6 +37,10 @@ jobs:
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
+    # Both suites finish in well under 10 minutes. Without a cap a hung setup
+    # step runs to the 6-hour default, which is how a flaky Chrome install
+    # sat for 28 minutes looking like a slow test rather than a stuck one.
+    timeout-minutes: 25
     if: github.event_name == 'pull_request'
     needs: test
     steps:
@@ -46,9 +50,21 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # coverage.mjs launches Chrome via channel:"chrome", so install the real
-      # Chrome channel (plus OS deps) rather than bundled Chromium.
-      - run: npx playwright install --with-deps chrome
+      - name: Ensure Chrome for Playwright
+        # Both suites launch Chrome via channel:"chrome" -- the real browser, not
+        # bundled Chromium. ubuntu-latest already ships Google Chrome, which is
+        # exactly what that channel resolves to, so the usual install is a no-op
+        # that still reaches out to apt and Google's CDN -- and that reach-out has
+        # hung for tens of minutes more than once. Use what is there, install only
+        # when it genuinely is not, and bound it either way.
+        timeout-minutes: 8
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "using preinstalled $(google-chrome --version)"
+          else
+            echo "no system Chrome found — installing via Playwright"
+            npx playwright install --with-deps chrome
+          fi
       # The suite runs against a local Supabase stack in Docker (preinstalled on
       # GitHub runners) rather than a hosted project. A hosted test project can
       # be paused by the free-tier idle policy, which is exactly what happened:
@@ -81,6 +97,10 @@ jobs:
   mobile:
     name: Mobile audit (Playwright)
     runs-on: ubuntu-latest
+    # Both suites finish in well under 10 minutes. Without a cap a hung setup
+    # step runs to the 6-hour default, which is how a flaky Chrome install
+    # sat for 28 minutes looking like a slow test rather than a stuck one.
+    timeout-minutes: 25
     if: github.event_name == 'pull_request'
     needs: test
     steps:
@@ -90,8 +110,21 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # mobile-audit.mjs launches Chrome via channel:"chrome", as coverage does.
-      - run: npx playwright install --with-deps chrome
+      - name: Ensure Chrome for Playwright
+        # Both suites launch Chrome via channel:"chrome" -- the real browser, not
+        # bundled Chromium. ubuntu-latest already ships Google Chrome, which is
+        # exactly what that channel resolves to, so the usual install is a no-op
+        # that still reaches out to apt and Google's CDN -- and that reach-out has
+        # hung for tens of minutes more than once. Use what is there, install only
+        # when it genuinely is not, and bound it either way.
+        timeout-minutes: 8
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "using preinstalled $(google-chrome --version)"
+          else
+            echo "no system Chrome found — installing via Playwright"
+            npx playwright install --with-deps chrome
+          fi
       - name: Start local Supabase
         run: npx supabase start
       - name: Apply migrations
