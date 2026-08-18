@@ -11,10 +11,24 @@ import { libbyBadge } from "../lib/libbyStatus.js";
 export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, onLibbyHold, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const ref = useRef(null);
+  const backdropRef = useRef(null);
   useEffect(() => {
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onDoc = (e) => {
+      // The mobile backdrop closes on its own click (see below); if we also
+      // closed here, at mousedown, React would unmount the backdrop before the
+      // click was dispatched and the browser would retarget that click to the
+      // backdrop's nearest surviving ancestor — the card — reopening the menu
+      // we just dismissed.
+      if (backdropRef.current?.contains(e.target)) return;
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    const onKey = (e) => e.key === "Escape" && onClose();
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [onClose]);
 
   // The menu opens leftward from a button near the card's right edge; on narrow
@@ -38,6 +52,9 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
   // we also ask whether a hold was placed. The click is never intercepted —
   // the prompt is raised alongside the navigation, not instead of it.
   const holdable = onLibbyHold && ["recommended", "wanttoread"].includes(getStatus(book));
+  // Phone-width cards have no room for the wait estimate on the pill, so it
+  // rides here instead — the same fact, one tap further in.
+  const wait = libbyBadge(book)?.wait;
   const libbyLink = (
     <a
       className={item}
@@ -47,58 +64,70 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
       onClick={() => { onClose(); if (holdable) onLibbyHold(book); }}
     >
       <Library className="h-3.5 w-3.5" /> Libby
+      {wait && <span className="sm:hidden text-zinc-500 dark:text-zinc-400"> · {wait}</span>}
     </a>
   );
 
   return (
-    <div ref={ref} onClick={(e) => e.stopPropagation()}
-      className="absolute right-1 top-8 z-20 w-52 animate-fade-up rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-      {readOnly ? (
-        <>
-          {onAdd && !book.is_series && (
-            <button className={`${item} font-semibold text-accent-600 dark:text-accent-400`} onClick={() => { onClose(); onAdd(book); }}>
-              <Plus className="h-3.5 w-3.5" /> Add to my library
-            </button>
-          )}
-          <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
-          {libbyLink}
-          <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
-        </>
-      ) : confirming ? (
-        <div className="p-2.5">
-          <p className="mb-2 text-sm leading-snug">
-            Delete <span className="font-semibold">"{book.title}"</span>?
-          </p>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => { onClose(); onDelete(); }}
-              className="flex-1 rounded-md bg-red-600 px-2 py-1.5 text-xs font-bold text-white hover:bg-red-700 cursor-pointer"
-            >
-              Delete
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 cursor-pointer"
-            >
-              Cancel
-            </button>
+    <>
+      {/* Mobile only: dismissing the menu is its own gesture on touch. This
+          swallows the tap so it never reaches the card underneath, which would
+          otherwise open that card's menu in the same tap. Desktop has no
+          backdrop and keeps the click-through behaviour. */}
+      <div
+        ref={backdropRef}
+        className="fixed inset-0 z-10 sm:hidden"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+      />
+      <div ref={ref} data-book-menu="" onClick={(e) => e.stopPropagation()}
+        className="absolute right-1 top-8 z-20 w-52 animate-fade-up rounded-lg border border-zinc-300/90 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        {readOnly ? (
+          <>
+            {onAdd && !book.is_series && (
+              <button className={`${item} font-semibold text-accent-600 dark:text-accent-400`} onClick={() => { onClose(); onAdd(book); }}>
+                <Plus className="h-3.5 w-3.5" /> Add to my library
+              </button>
+            )}
+            <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
+            {libbyLink}
+            <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
+          </>
+        ) : confirming ? (
+          <div className="p-2.5">
+            <p className="mb-2 text-sm leading-snug">
+              Delete <span className="font-semibold">"{book.title}"</span>?
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => { onClose(); onDelete(); }}
+                className="flex-1 rounded-md bg-red-600 px-2 py-1.5 text-xs font-bold text-white hover:bg-red-700 cursor-pointer"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          <button className={item} onClick={() => { onClose(); onEdit(); }}><Pencil className="h-3.5 w-3.5" /> Edit</button>
-          {!book.is_series && onQueueToggle && (
-            <button className={item} onClick={() => { onClose(); onQueueToggle(); }}>
-              {queued ? <><ListX className="h-3.5 w-3.5" /> Remove from Up Next</> : <><ListPlus className="h-3.5 w-3.5" /> Add to Up Next</>}
-            </button>
-          )}
-          <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
-          {libbyLink}
-          <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
-          <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
-        </>
-      )}
-    </div>
+        ) : (
+          <>
+            <button className={item} onClick={() => { onClose(); onEdit(); }}><Pencil className="h-3.5 w-3.5" /> Edit</button>
+            {!book.is_series && onQueueToggle && (
+              <button className={item} onClick={() => { onClose(); onQueueToggle(); }}>
+                {queued ? <><ListX className="h-3.5 w-3.5" /> Remove from Up Next</> : <><ListPlus className="h-3.5 w-3.5" /> Add to Up Next</>}
+              </button>
+            )}
+            <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
+            {libbyLink}
+            <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
+            <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -115,7 +144,10 @@ export function LibbyChip({ book, className = "" }) {
   }[badge.tone];
   return (
     <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone} ${className}`}>
-      {badge.text}
+      {badge.base}
+      {/* The estimate is the first thing to go when the card is phone-width —
+          the action menu carries it there instead (see ActionMenu). */}
+      {badge.wait && <span className="hidden sm:inline"> · {badge.wait}</span>}
     </span>
   );
 }
@@ -123,6 +155,19 @@ export function LibbyChip({ book, className = "" }) {
 function seriesMeta(book) {
   const n = book.books?.length ?? 0;
   return `${n} book${n === 1 ? "" : "s"}`;
+}
+
+// A quiet warning on books you have not committed to yet: the crowd rates this
+// well below the shelf average. Shared by the card and list views so the
+// threshold only lives in one place.
+function LukewarmNote({ book }) {
+  const r = Number(book.goodreads_rating);
+  if (book.status !== "wanttoread" || !(r > 0) || r >= 3.8) return null;
+  return (
+    <div className="mt-1 text-xs text-amber-700/80 dark:text-amber-500/80">
+      the crowd is lukewarm on this one · {r}★
+    </div>
+  );
 }
 
 // ---- view: card grid ----
@@ -133,6 +178,7 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
   return (
     // Outer: click + group context, no overflow-hidden so the dropdown can escape.
     <div
+      data-book-card={book.is_series ? "series" : "book"}
       onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
       className="group relative flex cursor-pointer flex-col rounded-xl shadow-sm transition hover:shadow-md"
     >
@@ -162,11 +208,7 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
               <LibbyChip book={book} />
             </div>
             {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">{book.subgenre}</div>}
-            {book.status === "wanttoread" && Number(book.goodreads_rating) > 0 && Number(book.goodreads_rating) < 3.8 && (
-              <div className="mt-1 text-xs text-amber-700/80 dark:text-amber-500/80">
-                the crowd is lukewarm on this one · {Number(book.goodreads_rating)}★
-              </div>
-            )}
+            <LukewarmNote book={book} />
           </div>
         </div>
       </div>
@@ -182,20 +224,24 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
   const rating = calcSeriesRating(book);
   return (
     <div
+      data-book-card={book.is_series ? "series" : "book"}
       onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
       className="group relative cursor-pointer"
       title={`${book.title}${book.author ? ` — ${book.author}` : ""}`}
     >
       <div className="relative overflow-hidden rounded-lg shadow-sm transition group-hover:shadow-lg group-hover:-translate-y-0.5">
         <Cover book={book} className="aspect-[1/1.5] w-full" rounded="rounded-lg" />
-        <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
+        {/* inset-x rather than left-only: pinned on both sides the stack keeps a
+            gutter off the cover's right edge instead of growing into it, and
+            items-start stops the now-full-width column from stretching chips. */}
+        <div className="absolute inset-x-1.5 top-1.5 flex flex-col items-start gap-1">
           <StatusChip status={status} className="shadow" />
           {book.is_series && (
             <span className="rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
               Series
             </span>
           )}
-          <LibbyChip book={book} className="shadow" />
+          <LibbyChip book={book} className="max-w-full truncate shadow" />
         </div>
         {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
       </div>
@@ -216,6 +262,7 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
   const rating = calcSeriesRating(book);
   return (
     <div
+      data-book-card={book.is_series ? "series" : "book"}
       onClick={book.is_series && onOpen ? onOpen : (readOnly ? onEdit : () => setMenu(true))}
       className="group relative flex cursor-pointer items-center gap-3 border-b border-zinc-100 px-2 py-2 transition hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-900"
     >
@@ -226,15 +273,37 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
           {book.loved && <Heart className="ml-1 inline h-3.5 w-3.5 fill-accent-500 text-accent-500" />}
           {book.is_series && <span className="ml-1.5 text-xs font-sans font-medium text-accent-600">series · {seriesMeta(book)} ›</span>}
         </div>
-        <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">{book.author}</div>
+        <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">
+          {book.author}
+          {book.subgenre && <span className="hidden sm:inline"> · {book.subgenre}</span>}
+        </div>
+        {/* Narrower than the column that holds each field, these stack under the
+            title instead of disappearing. Each one switches at the same
+            breakpoint as its column, so nothing renders twice. */}
+        {book.narrator && (
+          <div className="flex items-center gap-1 truncate text-xs text-zinc-500 dark:text-zinc-400 md:hidden">
+            <Mic className="h-3 w-3 shrink-0" /><span className="truncate">{book.narrator}</span>
+          </div>
+        )}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:hidden">
+          <StatusChip status={status} />
+          {rating > 0 && <Stars rating={rating} size="text-xs" />}
+          {/* no series count here — the title line already carries it */}
+          {!book.is_series && book.duration_minutes && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDuration(book.duration_minutes)}</span>
+          )}
+          <LibbyChip book={book} />
+        </div>
+        {book.subgenre && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400 sm:hidden">{book.subgenre}</div>}
+        <LukewarmNote book={book} />
       </div>
       <div className="hidden w-40 truncate text-xs text-zinc-500 dark:text-zinc-400 md:block">{book.narrator}</div>
       <div className="hidden w-16 text-right text-xs text-zinc-500 dark:text-zinc-400 sm:block">
         {book.is_series ? "" : fmtDuration(book.duration_minutes) ?? ""}
       </div>
       <div className="hidden shrink-0 sm:block"><LibbyChip book={book} /></div>
-      <div className="shrink-0 text-right">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
-      <div className="shrink-0 text-right"><StatusChip status={status} /></div>
+      <div className="hidden shrink-0 text-right sm:block">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
+      <div className="hidden shrink-0 text-right sm:block"><StatusChip status={status} /></div>
       {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
