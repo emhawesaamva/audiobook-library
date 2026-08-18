@@ -38,3 +38,6 @@ scripts/ui-test/fixtures/
 # Local dev seed data (scripts/seed-local.mjs). A capture of a real library —
 # keep it off a public repo; `npm run db:capture` regenerates it locally.
 supabase/seed-data.json
+
+# Generated from seed-data.json by `npm run db:capture`; same reason it is ignored.
+supabase/seed.sql
