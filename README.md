@@ -56,8 +56,8 @@ npm run db:use-local  # point .env at the local stack (backs up your hosted .env
 `npm run db:stop` shuts it down. Studio is at http://127.0.0.1:54323.
 
 **Hosted project.** Run the files in `supabase/migrations/` in filename order
-against a fresh Supabase project (SQL editor, or `node scripts/run-sql.js <file>`
-with a `SUPABASE_ACCESS_TOKEN`), then in the dashboard:
+against a fresh Supabase project (SQL editor, or the Supabase MCP), then in the
+dashboard:
 
 1. **Auth → Providers**: enable **Email**, and **Google** (needs a Google Cloud OAuth client; authorized redirect URI is `https://YOUR_PROJECT.supabase.co/auth/v1/callback`)
 2. **Auth → URL Configuration**: Site URL = your production URL; add `http://localhost:5173` to additional redirect URLs
@@ -77,7 +77,6 @@ covers them.
 | `npm run backup` | Dump the legacy `audiobook_library` table to `backups/` |
 | `npm run migrate` | One-time legacy → relational migration (`OWNER_EMAIL=... npm run migrate`) |
 | `npm run verify-migration` | Verify migrated counts/fields against the legacy data |
-| `node scripts/run-sql.js <file.sql>` | Run SQL via the Supabase Management API |
 
 ## Vercel environment variables
 
