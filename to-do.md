@@ -3,7 +3,7 @@
 Outstanding work, most consequential first. The README's own To-do section
 tracks completed milestones; this file is for what is still open.
 
-Last reviewed: 2026-08-17.
+Last reviewed: 2026-08-18.
 
 ---
 
@@ -13,63 +13,28 @@ Last reviewed: 2026-08-17.
 The service-role key was rotated on 2026-08-17. The local `.env` still holds the
 old one, so anything reading `SUPABASE_SECRET_KEY` fails silently-ish until it is
 replaced: the Admin tab's user list and delete-user, `scripts/test-integration.js`,
-`scripts/ui-test/mobile-audit.mjs`, and `scripts/common.js`.
+`scripts/ui-test/mobile-audit.mjs`, and `scripts/common.js`. No API exposes the
+value — it's dashboard-only, one-time-view on rotation, so this can't be scripted.
 
 Dashboard → Project Settings → API keys → secret key.
 
-### Remove the leftover `chore/close-testing-gaps` worktree
-Local machine state rather than project work, noted here so it is not forgotten.
-The branch merged as PR #14 and its remote is deleted, so the worktree at
-`../AudioLib-io.chore-close-testing-gaps` holds nothing that master lacks —
-`git merge-base --is-ancestor` confirms it. It is clean, so nothing is lost:
+### Delete the "Library Test" Supabase project
+Paused, obsolete now that CI runs locally, and occupying one of two free-tier
+active-project slots. The Supabase management API/MCP has no delete-project
+call (only pause/restore) — dashboard only: Settings → General → Delete project.
 
-```bash
-git worktree remove ../AudioLib-io.chore-close-testing-gaps
-git branch -D chore/close-testing-gaps
-```
-
-Check `git worktree list` first, in case a session is still working in it.
-
-### Install Docker for local test parity
-`npm run db:start`, `test:e2e`, `test:mobile` and `test:integration` all need the
-local Supabase stack, which needs Docker. Without it those suites only ever run in
-CI, so a break is found minutes later in a PR rather than seconds later locally.
-
-`brew install --cask docker`, then `npm run db:start && npm run db:reset && npm run db:use-local`.
-
-### Confirm the first scheduled nightly run
-`.github/workflows/nightly.yml` fires at 07:00 UTC. It has been verified two ways
-(on its own PR, and via `workflow_dispatch`) but has never fired on the schedule
-itself. Check the first one, then stop worrying about it.
-
-### Check the mobile audit artifact after that run
-The Up Next drawer grew in #12 and the audit has not run since. It measures tap
-targets and overflow, and the drawer is `fixed` and deliberately off-screen when
-closed — `mobile-audit.mjs` excludes it via `[data-upnext-drawer]`, but that
-exclusion has not been exercised against the larger drawer.
+~~Remove the leftover `chore/close-testing-gaps` worktree~~ — done 2026-08-18.
+~~Install Docker for local test parity~~ — done 2026-08-18.
+~~Confirm the first scheduled nightly run~~ — done; a `schedule`-triggered run
+fired 2026-08-17 07:45 UTC and succeeded.
+~~Check the mobile audit artifact after that run~~ — done; artifact confirmed
+present, and the `[data-upnext-drawer]` exclusion re-verified against the grown
+drawer (18/18 steps pass, zero overflow). `test:mobile` also moved from nightly
+to the per-PR gate (#18), so this now runs on every PR rather than once a night.
 
 ---
 
 ## 2. Cleanup, safe to do any time
-
-### Delete the three unused GitHub repo secrets
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` are
-referenced by **no workflow** since E2E moved to the local stack. They are not
-readable — not by the API, not by an admin — so deleting loses the values for
-good. Evidence says they pointed at "Library Test": they were created hours after
-that project, and production's auth table never contained a `coverage-test@…`
-account, which the E2E suite creates on every run.
-
-### Delete the "Library Test" Supabase project
-Paused, obsolete now that CI runs locally, and occupying one of two free-tier
-active-project slots. Deleting it frees the slot.
-
-### Decide the fate of `scripts/run-sql.js`
-It needs `SUPABASE_ACCESS_TOKEN`, which is still a placeholder, and its fallback
-path reads `%APPDATA%` — Windows-only, so it has never worked on this machine.
-Schema now lives in `supabase/migrations/`, applied locally by `supabase db reset`
-and to production via the Supabase MCP. Either populate the token or delete the
-script and its README references.
 
 ### Document where each environment variable actually lives
 The README lists the variables but not their homes, and that ambiguity cost real
@@ -84,6 +49,11 @@ functions before turning up in Vercel. A short table would prevent a repeat.
 | `GEMINI_API_KEY` | placeholder | **yes** | fallback only fires on credit exhaustion |
 | `SUPABASE_ACCESS_TOKEN` | placeholder | no | local tooling only; see above |
 | `OWNER_EMAIL` | yes | no | one-time legacy migration |
+
+~~Delete the three unused GitHub repo secrets~~ — done 2026-08-18
+(`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`).
+~~Decide the fate of `scripts/run-sql.js`~~ — done 2026-08-18; deleted along with
+its README references (#19).
 
 ---
 
