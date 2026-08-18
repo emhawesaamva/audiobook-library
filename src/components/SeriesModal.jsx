@@ -1,7 +1,7 @@
 // Series detail dialog: header metadata plus the volume list, with add/edit/
 // delete per volume and a "fetch missing volumes" action driven by metadata.
 import { useState } from "react";
-import { Dialog, Stars, StatusChip, Cover, Spinner, btnSecondary } from "./shared.jsx";
+import { Dialog, Stars, StatusChip, Cover, Spinner, btnSecondary, ConfirmRow } from "./shared.jsx";
 import BookForm from "./BookForm.jsx";
 import { ActionMenu } from "./BookCard.jsx";
 import { calcSeriesRating, fmtDuration } from "../lib/bookUtils.js";
@@ -52,11 +52,12 @@ function SeriesQualityCurve({ books }) {
   );
 }
 
-export default function SeriesModal({ series, recommenders = [], allTags = [], libbyKey, affiliateTag, onClose, onSaveSub, onDeleteSub, onEditHeader, onAddVolumes, onToast }) {
+export default function SeriesModal({ series, recommenders = [], allTags = [], libbyKey, affiliateTag, onLibbyHold, onClose, onSaveSub, onDeleteSub, onEditHeader, onDeleteSeries, onAddVolumes, onToast }) {
   const [subForm, setSubForm] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [missing, setMissing] = useState(null); // volumes not yet in the series
   const [openMenu, setOpenMenu] = useState(null); // sub-book id whose menu is open
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const subBooks = series.books ?? [];
   const rating = calcSeriesRating(series);
 
@@ -98,8 +99,23 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], l
           {series.loved && <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-accent-600"><Heart className="h-3.5 w-3.5 fill-accent-500 text-accent-500" /> Loved</span>}
           {series.genre && <span className="text-xs text-zinc-500 dark:text-zinc-400">{series.genre}{series.subgenre ? ` · ${series.subgenre}` : ""}</span>}
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{subBooks.length} book{subBooks.length === 1 ? "" : "s"}</span>
-          <button onClick={onEditHeader} className="ml-auto text-xs font-medium text-accent-600 hover:text-accent-700 cursor-pointer">Edit series</button>
+          {!confirmingDelete && (
+            <span className="ml-auto flex items-center gap-3">
+              <button onClick={onEditHeader} className="text-xs font-medium text-accent-600 hover:text-accent-700 cursor-pointer">Edit series</button>
+              <button onClick={() => setConfirmingDelete(true)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 cursor-pointer">Delete series</button>
+            </span>
+          )}
         </div>
+
+        {confirmingDelete && (
+          <div className="mb-4">
+            <ConfirmRow
+              message={`Delete "${series.title}" and all ${subBooks.length} book${subBooks.length === 1 ? "" : "s"} in it? This cannot be undone.`}
+              onConfirm={onDeleteSeries}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          </div>
+        )}
 
         <SeriesQualityCurve books={subBooks} />
 
@@ -159,6 +175,7 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], l
                     affiliateTag={affiliateTag}
                     onEdit={() => setSubForm(b)}
                     onDelete={async () => { await onDeleteSub(b.id); onToast?.({ text: `Deleted "${b.title}"` }); }}
+                    onLibbyHold={onLibbyHold}
                     onClose={() => setOpenMenu(null)}
                   />
                 )}

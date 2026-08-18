@@ -1,6 +1,7 @@
 // Data layer over the v2 relational schema. All access is scoped to the
 // signed-in user by RLS; this module never needs to filter by account.
 import supabase from "./supabase.js";
+import { cleanBookFields } from "./bookUtils.js";
 
 function throwOn(error) {
   if (error) throw new Error(error.message);
@@ -72,43 +73,23 @@ export async function loadBooks(profileId) {
     );
 }
 
-const BOOK_COLUMNS = new Set([
-  "profile_id", "parent_id", "is_series", "title", "author", "genre", "subgenre",
-  "status", "rating", "loved", "notes", "year", "goodreads_rating", "goodreads_url",
-  "cover_url", "narrator", "duration_minutes", "description", "date_started",
-  "date_finished", "isbn", "asin", "series_position", "progress_percent",
-  "dnf_reason", "recommended_by", "queue_position", "reread_count", "tags",
-  "source",
-]);
-
-function clean(fields) {
-  const out = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (BOOK_COLUMNS.has(k)) out[k] = v === "" ? null : v;
-  }
-  // Series headers keep rating/status NULL (derived from children).
-  if (out.is_series) { out.rating = null; out.status = null; }
-  if (out.rating != null && !(Number(out.rating) > 0)) out.rating = null;
-  return out;
-}
-
 export async function createBook(fields) {
   const { data, error } = await supabase
-    .from("books").insert(clean(fields)).select().single();
+    .from("books").insert(cleanBookFields(fields)).select().single();
   throwOn(error);
   return data;
 }
 
 export async function createBooks(rows) {
   const { data, error } = await supabase
-    .from("books").insert(rows.map(clean)).select();
+    .from("books").insert(rows.map(cleanBookFields)).select();
   throwOn(error);
   return data;
 }
 
 export async function updateBook(id, patch) {
   const { data, error } = await supabase
-    .from("books").update(clean(patch)).eq("id", id).select().single();
+    .from("books").update(cleanBookFields(patch)).eq("id", id).select().single();
   throwOn(error);
   return data;
 }
@@ -246,6 +227,21 @@ export async function setAppSetting(key, value) {
 export async function getAccount(accountId) {
   const { data, error } = await supabase
     .from("accounts").select("*").eq("id", accountId).maybeSingle();
+  throwOn(error);
+  return data;
+}
+
+// ---- feedback (contact us) ----
+
+export async function createFeedback(email, message) {
+  const { error } = await supabase.from("feedback").insert({ email, message });
+  throwOn(error);
+}
+
+// Admin only — RLS restricts select to public.is_admin().
+export async function listFeedback() {
+  const { data, error } = await supabase
+    .from("feedback").select("*").order("created_at", { ascending: false });
   throwOn(error);
   return data;
 }

@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { assertNotProductionUrl } from '../production-refs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, 'mobile-shots');
@@ -80,6 +81,10 @@ const env = Object.fromEntries(
 );
 const SUPA_URL = env.VITE_SUPABASE_URL;
 const SECRET = env.SUPABASE_SECRET_KEY;
+
+// ensureTestAccount() below deletes and recreates its account on every run, so
+// pointed at production it destroys a real one. Guard before any of that.
+if (SUPA_URL && SECRET) assertNotProductionUrl(SUPA_URL, "the mobile audit");
 
 // Create the test account via the Supabase admin API if it doesn't exist yet.
 // The on_auth_user_created trigger then creates the matching accounts row, so a
@@ -507,6 +512,11 @@ await step('11-card-menu', async () => {
     const vw = window.innerWidth, vh = window.innerHeight;
     const cand = [...document.querySelectorAll('div, ul')].filter((el) => {
       const cs = getComputedStyle(el);
+      // The Up Next drawer is fixed and mentions "Up Next" too, but it sits
+      // deliberately off-screen when closed — measuring it here would report a
+      // false overflow. Exclude it explicitly rather than relying on the action
+      // menu happening to come later in the DOM.
+      if (el.closest('[data-upnext-drawer]')) return false;
       return (cs.position === 'absolute' || cs.position === 'fixed') && el.querySelector('button') && /Up Next|Edit|Delete/i.test(el.textContent);
     });
     const el = cand[cand.length - 1];

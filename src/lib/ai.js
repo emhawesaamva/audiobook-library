@@ -62,7 +62,7 @@ Return JSON only, no markdown:
 {"headline":"one short, punchy, enthusiastic sentence reacting to what they asked for — make them excited to scroll; no emoji","recommendations":[{"title":"","author":"","year":"","why":"one direct line","similarity":"most like: [title]","genre":"Science Fiction","subgenre":""}],"note":""}`;
 
   const d = await claudeFetch({
-    model: model || "claude-sonnet-4-6",
+    model: model || "claude-sonnet-5",
     max_tokens: maxTokens,
     system: sys,
     messages: [{ role: "user", content: query }],

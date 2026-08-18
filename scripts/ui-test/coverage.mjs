@@ -17,7 +17,9 @@ import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { authAdmin, findUserByEmail } from "../common.js";
+import { authAdmin, findUserByEmail, assertNotProduction } from "../common.js";
+
+assertNotProduction("the E2E coverage suite");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(__dirname, "shots", "coverage");
@@ -33,6 +35,7 @@ const STUB = process.env.USE_REAL_AI !== "1";
 const results = [];
 const consoleErrors = [];
 let current = "startup";
+let fatal = null; // set when the suite body throws, so the report can exit non-zero
 
 async function step(name, fn) {
   current = name;
@@ -136,6 +139,12 @@ if (STUB) {
     r.continue({ headers: { ...r.request().headers(), "x-force-gemini": "1" } }));
   console.log("live AI forced via GEMINI");
 }
+
+// Outbound links (Libby, Audible, Goodreads) are target=_blank. Clicking one
+// spawns a real tab that would try to load an external site; discard it so the
+// suite stays offline and deterministic. The click still registers, which is
+// what the hold prompt keys off.
+ctx.on("page", (p) => p.close().catch(() => {}));
 
 // The one-time "This book is on Audible" promo pops up asynchronously after the
 // first add and overlays everything. Auto-dismiss it (permanently, via "Already
@@ -317,6 +326,48 @@ try {
   });
 
   // ---------- STATS ----------
+  // ---------- LIBBY HOLDS ----------
+  // No library code is configured on a fresh account, so HoldModal makes no
+  // availability call and the wait field starts empty — deterministic without
+  // depending on the stubbed metadata endpoint.
+  await step("hold-prompt-opens-from-libby-link", async () => {
+    await addBookManually("Piranesi", { status: "wanttoread" });
+    await page.getByText("Piranesi").first().waitFor({ state: "visible" });
+    await page.getByText("Piranesi").first().click(); // opens the action menu
+    await page.getByRole("link", { name: "Libby" }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "visible" });
+  });
+
+  await step("hold-save", async () => {
+    await page.locator("#hold-weeks").fill("10");
+    await page.getByRole("button", { name: /Yes, save hold/ }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "hidden" });
+  });
+
+  await step("holds-tab-lists-the-hold", async () => {
+    await page.getByRole("button", { name: "Libby Holds" }).click();
+    await page.getByText("Piranesi").first().waitFor({ state: "visible" });
+    // Saved today, so the full 10 weeks should still be outstanding.
+    await page.getByText("10", { exact: true }).first().waitFor({ state: "visible" });
+    await page.getByText(/weeks left/i).first().waitFor({ state: "visible" });
+  });
+
+  await step("hold-edit-updates-the-countdown", async () => {
+    await page.locator('button[aria-label^="Edit hold"]').first().click();
+    await page.getByText("Edit hold").first().waitFor({ state: "visible" });
+    await page.locator("#hold-weeks").fill("4");
+    await page.getByRole("button", { name: "Save hold" }).click();
+    await page.getByText("Edit hold").first().waitFor({ state: "hidden" });
+    await page.getByText("4", { exact: true }).first().waitFor({ state: "visible" });
+  });
+
+  await step("hold-clear-empties-the-tab", async () => {
+    await page.locator('button[aria-label^="Edit hold"]').first().click();
+    await page.getByRole("button", { name: "Clear hold" }).click();
+    await page.getByText(/No holds recorded yet/i).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+  });
+
   await step("stats-goals", async () => {
     await page.getByRole("button", { name: "Stats", exact: true }).click();
     await page.getByPlaceholder("e.g. 24").first().waitFor({ state: "visible" });
@@ -459,6 +510,7 @@ try {
     await page.locator("input[type=email]").waitFor({ state: "visible", timeout: 15000 });
   });
 } catch (e) {
+  fatal = e;
   console.log(`\nFATAL: ${e.message}`);
   await page.screenshot({ path: path.join(SHOTS, "FATAL.png"), fullPage: true }).catch(() => {});
 } finally {
@@ -472,4 +524,18 @@ console.log("\n\n========== COVERAGE RESULTS ==========");
 for (const r of results) console.log(`${r.status.padEnd(5)} ${r.name}${r.detail ? " — " + r.detail : ""}`);
 console.log(`\n${pass}/${results.length} steps passed`);
 if (consoleErrors.length) { console.log(`\nConsole/page errors (${consoleErrors.length}):`); consoleErrors.slice(0, 20).forEach((e) => console.log("  " + e)); }
+
+// A suite that aborted before running anything used to satisfy
+// `pass === results.length` as 0 === 0 and exit 0, so CI reported a green E2E
+// check for a run that tested nothing — the gate passed unconditionally for
+// months while the test database was paused. Success now requires that steps
+// actually ran and that nothing threw out of the suite body.
+if (fatal) {
+  console.log(`\nFAILED: suite aborted — ${fatal.message}`);
+  process.exit(1);
+}
+if (!results.length) {
+  console.log("\nFAILED: no steps ran. The suite reached the report without executing anything.");
+  process.exit(1);
+}
 process.exit(pass === results.length ? 0 : 1);

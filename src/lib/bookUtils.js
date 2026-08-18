@@ -118,8 +118,38 @@ export function audibleSearchUrl(book, affiliateTag = null) {
 export function libbySearchUrl(book, libraryKey) {
   const q = encodeURIComponent(`${book.title} ${book.author ?? ""}`.trim());
   return libraryKey
-    ? `https://libbyapp.com/search/${encodeURIComponent(libraryKey)}/search/scope-auto/query-${q}/page-1`
+    ? `https://libbyapp.com/search/${encodeURIComponent(libraryKey)}/search/scope-auto/audiobooks/query-${q}/language-en/page-1`
     : `https://www.overdrive.com/search?q=${q}`;
+}
+
+// ---- library holds ----
+// A hold is an indicator, not a status: hold_weeks (the wait Libby quoted) plus
+// hold_date (when it was recorded). Remaining wait counts down from there, so a
+// 10-week hold placed 2 weeks ago reads 8 weeks. Both columns move together —
+// either missing means no hold.
+export function hasHold(book) {
+  return !!(book?.hold_date && Number(book?.hold_weeks) > 0);
+}
+
+// Whole weeks left before the quoted wait elapses. 0 means the estimate has
+// run out (the book may be ready); the hold is kept until the user clears it.
+export function holdWeeksLeft(book) {
+  if (!hasHold(book)) return null;
+  // Parse as local midnight — "2026-08-16" alone parses as UTC and can land on
+  // the previous day west of Greenwich, shifting every countdown by a day.
+  const ready = new Date(`${book.hold_date}T00:00:00`);
+  ready.setDate(ready.getDate() + Number(book.hold_weeks) * 7);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((ready - today) / 86_400_000);
+  return days <= 0 ? 0 : Math.ceil(days / 7);
+}
+
+// Section heading for the Holds tab. Expired holds group first under wording
+// that stays honest about the estimate: Libby's quote is a guess, not a promise.
+export function holdGroupLabel(weeksLeft) {
+  if (weeksLeft === 0) return "These may be ready now";
+  return weeksLeft === 1 ? "1 week" : `${weeksLeft} weeks`;
 }
 
 export function goodreadsSearchUrl(book) {
@@ -133,4 +163,28 @@ export function placeholderHue(title) {
   let h = 0;
   for (const c of title ?? "") h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return PLACEHOLDER_HUES[h % PLACEHOLDER_HUES.length];
+}
+
+// ---- write-path shaping (used by db.js before every insert/update) ----
+
+const BOOK_COLUMNS = new Set([
+  "profile_id", "parent_id", "is_series", "title", "author", "genre", "subgenre",
+  "status", "rating", "loved", "notes", "year", "goodreads_rating", "goodreads_url",
+  "cover_url", "narrator", "duration_minutes", "description", "date_started",
+  "date_finished", "isbn", "asin", "series_position", "progress_percent",
+  "dnf_reason", "recommended_by", "queue_position", "reread_count", "tags",
+  "hold_weeks", "hold_date",
+  "libby_state", "libby_wait_days", "libby_checked_at",
+  "source",
+]);
+
+export function cleanBookFields(fields) {
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (BOOK_COLUMNS.has(k)) out[k] = v === "" ? null : v;
+  }
+  // Series headers keep rating/status NULL (derived from children).
+  if (out.is_series) { out.rating = null; out.status = null; }
+  if (out.rating != null && !(Number(out.rating) > 0)) out.rating = null;
+  return out;
 }

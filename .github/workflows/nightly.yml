@@ -1,0 +1,50 @@
+# The one suite the per-PR gate deliberately leaves out, on a schedule so it
+# runs at all. Before this, test:integration and test:mobile both executed only
+# when someone remembered — and test:mobile is what put a stray test account
+# into the production auth table, because nothing stopped it pointing there.
+# test:mobile now gates every PR instead (see ci.yml) and was removed from here.
+#
+# Runs against a local Supabase stack, same as CI: no credentials, no hosted
+# project to pause, nothing that can reach production.
+name: Nightly
+
+on:
+  schedule:
+    # 07:00 UTC — after the working day in most timezones, so a red result is
+    # waiting rather than interrupting.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+  # A scheduled workflow is only reachable from the default branch, so an edit
+  # to this file would otherwise go unverified until it broke at 07:00. Run it
+  # on PRs that touch it, and nothing else.
+  pull_request:
+    paths:
+      - ".github/workflows/nightly.yml"
+
+jobs:
+  extended:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Start local Supabase
+        run: npx supabase start
+      - name: Apply migrations
+        run: npx supabase db reset --no-seed
+      - name: Point .env at the local stack
+        run: npm run db:use-local
+
+      # RLS isolation, the signup trigger, admin self-promotion — none of which
+      # the UI suites cover, and all of which are security-relevant.
+      - name: Integration (RLS, auth, admin)
+        run: npm run test:integration
+
+      - name: Supabase status on failure
+        if: failure()
+        run: npx supabase status || true

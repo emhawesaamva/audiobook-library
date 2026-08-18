@@ -25,7 +25,7 @@ Sign in with Google (or email/password), create one or more **libraries** (per p
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS v4 |
 | Auth | Supabase Auth (Google OAuth + email/password) |
-| Database | Supabase Postgres with RLS (`supabase/schema.sql`, `supabase/rls.sql`) |
+| Database | Supabase Postgres with RLS (`supabase/migrations/`) |
 | AI | Claude API (Sonnet for recommendations, Haiku for identification) via serverless proxy |
 | Metadata | Audible catalog API (narrator/runtime/series/covers), Open Library + iTunes fallbacks via `api/metadata.js` |
 | Hosting | Vercel (static build + serverless functions in `api/`) |
@@ -42,15 +42,33 @@ The Vite dev server proxies `/v1/*` to Anthropic (key injected server-side) and 
 
 ## Database setup (one-time)
 
-Run in order against a fresh Supabase project (SQL editor, or `node scripts/run-sql.js <file>` with a `SUPABASE_ACCESS_TOKEN`):
+Schema lives in `supabase/migrations/`, applied in filename order. Two ways to
+get a database:
 
-1. `supabase/schema.sql` — tables, triggers, seed settings
-2. `supabase/rls.sql` — row-level security policies
+**Local (recommended for development and tests).** Needs Docker running:
 
-Then in the Supabase dashboard:
+```bash
+npm run db:start      # boot Postgres + auth + PostgREST + Studio in Docker
+npm run db:reset      # apply supabase/migrations/* onto a clean database
+npm run db:use-local  # point .env at the local stack (backs up your hosted .env)
+```
+
+`npm run db:stop` shuts it down. Studio is at http://127.0.0.1:54323.
+
+**Hosted project.** Run the files in `supabase/migrations/` in filename order
+against a fresh Supabase project (SQL editor, or the Supabase MCP), then in the
+dashboard:
 
 1. **Auth → Providers**: enable **Email**, and **Google** (needs a Google Cloud OAuth client; authorized redirect URI is `https://YOUR_PROJECT.supabase.co/auth/v1/callback`)
 2. **Auth → URL Configuration**: Site URL = your production URL; add `http://localhost:5173` to additional redirect URLs
+
+Migrations are additive and idempotent, so an existing database only needs the
+files it hasn't seen yet.
+
+`supabase/add-feedback-table.sql` and `supabase/lock-legacy-table.sql` sit
+outside `migrations/` deliberately — they are one-shot patches for the
+already-live database, and would fail on a fresh one where `schema` already
+covers them.
 
 ## Scripts
 
@@ -59,11 +77,19 @@ Then in the Supabase dashboard:
 | `npm run backup` | Dump the legacy `audiobook_library` table to `backups/` |
 | `npm run migrate` | One-time legacy → relational migration (`OWNER_EMAIL=... npm run migrate`) |
 | `npm run verify-migration` | Verify migrated counts/fields against the legacy data |
-| `node scripts/run-sql.js <file.sql>` | Run SQL via the Supabase Management API |
 
-## Vercel environment variables
+## Environment variables
 
-`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (server-side), plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (bundled into the frontend).
+Where each one actually lives — worth checking here before hunting through
+`app_settings`, `vault.secrets`, or edge functions:
+
+| Variable | Local `.env` | Vercel | Notes |
+|---|---|---|---|
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | yes | yes | points at production in both; bundled into the frontend |
+| `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | yes | yes | server-side only; secret key is service role — bypasses RLS |
+| `ANTHROPIC_API_KEY` | yes | yes | |
+| `GEMINI_API_KEY` | placeholder locally | **yes** | fallback only fires on credit exhaustion |
+| `OWNER_EMAIL` | yes | no | local tooling only, one-time legacy migration |
 
 ## Automated testing
 
@@ -74,21 +100,37 @@ Tests run automatically in a pipeline ([GitHub Actions](.github/workflows/ci.yml
 | Trigger | Suite | Why |
 |---|---|---|
 | Push to `dev` / `master` | `npm test` (unit + import logic) | Fast feedback (~15s); these are pure functions, no network |
-| PR into `master` | `npm test` **and** `npm run test:e2e` (Playwright) | Full gate before anything can deploy |
+| PR into `master` | `npm test`, `npm run test:e2e`, **and** `npm run test:mobile` (Playwright) | Full gate before anything can deploy |
 
 **Two layers of testing.**
 
 - **Unit / integration** — call functions directly with hand-written inputs (mock data). No database or network, so they need no secrets and finish in seconds. This is most of the suite.
 - **End-to-end (E2E)** — launch the real app in a headless browser and click through every user flow (sign in, add a book, import a CSV, export, share…). It verifies the *real wiring*, so it talks to a live Supabase backend. It stubs only the paid external APIs (Claude + Audible) to stay fast, free, and deterministic.
+- **Mobile audit** — the same kind of Playwright run as E2E, but at phone viewport widths (390px and 320px), checking for horizontal overflow, wrapped/clipped labels, and undersized tap targets. Used to run nightly only, which meant a PR could merge with a mobile layout regression and nothing would say so until the next morning; it gates every PR now.
 
-**The gate.** Branch protection on `master` requires *both* suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
+**The gate.** Branch protection on `master` requires all three suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
 
-**The E2E test database.** E2E runs against a **dedicated, non-production** Supabase project (never production — the suite creates and deletes throwaway accounts using an admin key, which would be destructive against real data). Its `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` are stored as GitHub repository secrets. To stand up a fresh test project, apply `supabase/schema.sql`, then `supabase/rls.sql`, then `supabase/public-read.sql` (see [Database setup](#database-setup-one-time)).
+**The E2E/mobile database.** Both E2E and the mobile audit run against a **local Supabase stack in Docker**, started by the CI job itself — no hosted project, no repo secrets, no free-tier pausing. Each run gets a clean database from `supabase/migrations/`, so runs cannot contaminate each other.
 
-`npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) are intentionally **not** in the per-PR gate — run them manually. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
+Run it locally the same way:
 
-## To-do
+```bash
+npm run db:start && npm run db:reset && npm run db:use-local
+npm run dev &
+npm run test:e2e
+```
 
-- [x] **Set up CI.** GitHub Actions (`.github/workflows/ci.yml`) runs `npm test` (unit + import logic) on pushes to `dev`/`master` and on PRs into `master`. The `npm run test:e2e` Playwright suite also runs on PRs into `master`, against a dedicated **non-production** Supabase test project (paid APIs stubbed). Branch protection on `master` requires both the unit suite and the E2E suite to pass before merging. `npm run test:mobile` and the live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual. See `docs/TESTING.md` for the full test surface.
-- [x] Confirm `GEMINI_API_KEY` is set in the Vercel project env so the Anthropic→Gemini fallback works in production.
-- [x] Open a PR `dev` → `master` to ship the StoryGraph + AI-assisted import work.
+This replaced a hosted test project that the free-tier idle policy had paused. The suite could not connect, reported `0/0 steps passed`, and **exited 0** — so the E2E check went green while testing nothing, for any change, indefinitely. `coverage.mjs` now exits non-zero when the suite aborts or when no steps ran, so that failure mode is loud.
+
+**Guarding production.** Local `.env` points at production so `npm run dev` works against real data, which is exactly the wrong target for these suites — they create and *delete* real auth users. `scripts/production-refs.js` holds the production refs, and `test:e2e`, `test:integration`, and `test:mobile` all refuse to run against one before making any request. Override per-run:
+
+```bash
+VITE_SUPABASE_URL=https://<test-ref>.supabase.co \
+SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e
+```
+
+`ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/production-refs.js`.
+
+**Nightly.** [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml) runs `npm run test:integration` (RLS isolation, the signup trigger, admin self-promotion) at 07:00 UTC, against the same local stack. Too slow for the per-PR gate, and previously ran only when someone remembered — which is how a stray test account once reached the production auth table. `workflow_dispatch` triggers a run on demand.
+
+The live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual, since they spend real API credit. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.

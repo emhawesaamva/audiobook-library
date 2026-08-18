@@ -6,6 +6,11 @@ name: CI
 # therefore the Vercel auto-deploy of master — until the tests pass. Pushes to
 # dev get the same fast feedback while iterating; pushes to master re-run so the
 # branch tip always has a recorded status.
+#
+# Nightly still separately covers test:integration (RLS/auth/admin — not a UI
+# concern) on a schedule, but test:mobile gates every PR now: it used to run
+# nightly only, which meant a PR could merge with a mobile layout regression
+# and nothing would say so until the next morning at the earliest.
 on:
   push:
     branches: [dev, master]
@@ -27,17 +32,13 @@ jobs:
 
   # End-to-end (Playwright). Runs only on PRs into master — it's slower than the
   # unit suite, so dev pushes stay fast. coverage.mjs stubs the paid APIs (Claude
-  # + Audible) so no AI keys are used, but it provisions a throwaway account
-  # through Supabase, so it needs a (non-production) test project's credentials.
+  # + Audible) so no AI keys are used, and it provisions its throwaway account
+  # against a local Supabase stack, so it needs no credentials at all.
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs: test
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,17 +49,68 @@ jobs:
       # coverage.mjs launches Chrome via channel:"chrome", so install the real
       # Chrome channel (plus OS deps) rather than bundled Chromium.
       - run: npx playwright install --with-deps chrome
-      # Vite reads VITE_* from a .env file; the test harness (common.js) reads the
-      # same file for SUPABASE_SECRET_KEY. Materialize it from the repo secrets.
-      - name: Write .env from secrets
-        run: |
-          {
-            echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
-            echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY"
-            echo "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY"
-          } >> .env
+      # The suite runs against a local Supabase stack in Docker (preinstalled on
+      # GitHub runners) rather than a hosted project. A hosted test project can
+      # be paused by the free-tier idle policy, which is exactly what happened:
+      # the suite failed to connect, reported 0/0 steps, and exited 0 — a green
+      # check that tested nothing. Local means no pausing, no project cap, no
+      # shared state between runs, and no credentials in repo secrets.
+      - name: Start local Supabase
+        run: npx supabase start
+      # Applies supabase/migrations/* in filename order onto a clean database.
+      - name: Apply migrations
+        run: npx supabase db reset --no-seed
+      - name: Point .env at the local stack
+        run: npm run db:use-local
+      # Prints the real status/body for the admin-create → sign-in → insert path.
+      # A PostgREST 403 in a browser console carries no detail; this does.
+      - name: Diagnose local stack
+        run: node scripts/diagnose-local.mjs
       - name: Start dev server and run E2E
         run: |
           npm run dev &
           npx wait-on -t 60000 http://localhost:5173
           npm run test:e2e
+      - name: Supabase logs on failure
+        if: failure()
+        run: npx supabase status || true
+
+  # Mobile-viewport layout audit (Playwright). Same local-Supabase setup as e2e,
+  # run as an independent job (not `needs: e2e`) so the two run in parallel and
+  # a slow/flaky one doesn't hold up the other.
+  mobile:
+    name: Mobile audit (Playwright)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # mobile-audit.mjs launches Chrome via channel:"chrome", as coverage does.
+      - run: npx playwright install --with-deps chrome
+      - name: Start local Supabase
+        run: npx supabase start
+      - name: Apply migrations
+        run: npx supabase db reset --no-seed
+      - name: Point .env at the local stack
+        run: npm run db:use-local
+      - name: Start dev server and run mobile audit
+        run: |
+          npm run dev &
+          npx wait-on -t 60000 http://localhost:5173
+          npm run test:mobile
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-audit-shots
+          path: scripts/ui-test/mobile-shots/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Supabase logs on failure
+        if: failure()
+        run: npx supabase status || true
