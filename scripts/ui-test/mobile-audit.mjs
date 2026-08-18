@@ -546,6 +546,70 @@ await step('11-card-menu', async () => {
   }
 });
 
+// On touch, dismissing a menu is its own gesture: the tap that closes one must
+// not open the next card's. Unlike the rest of this audit, this step asserts —
+// a regression here is a behaviour bug, not a layout finding.
+await step('11b-card-menu-dismiss', async () => {
+  await page.keyboard.press('Escape'); // start from a known-closed state
+  await page.waitForTimeout(200);
+  const menus = page.locator('[data-book-menu]');
+  const cards = page.locator('[data-book-card="book"]');
+  if ((await cards.count()) < 2) throw new Error('need at least two non-series cards for this check');
+
+  await cards.nth(0).click();
+  await menus.first().waitFor({ state: 'visible' });
+
+  // The open menu is ~200px tall against a ~130px card, so it covers the cards
+  // just below it — a tap at the next card's centre is really a tap on a menu
+  // item, which tests nothing. The menu hugs the right edge though, so aim at
+  // the leftmost point of an on-screen card that falls outside it.
+  const mbox = await menus.first().boundingBox();
+  const vh = page.viewportSize().height;
+  let target = null;
+  const cardCount = await cards.count();
+  for (let i = 1; i < cardCount && !target; i++) {
+    const b = await cards.nth(i).boundingBox();
+    if (!b) continue;
+    const y = b.y + b.height / 2;
+    if (y <= 0 || y >= vh) continue;
+    for (const fx of [0.15, 0.5, 0.85]) {
+      const x = b.x + b.width * fx;
+      const clear = x < mbox.x || x > mbox.x + mbox.width || y < mbox.y || y > mbox.y + mbox.height;
+      if (clear) { target = { x, y, i }; break; }
+    }
+  }
+  if (!target) throw new Error('no on-screen point on another card falls clear of the open menu');
+  const hit = await page.evaluate(([x, y]) => {
+    const el = document.elementFromPoint(x, y);
+    return el?.closest('[data-book-menu]') ? 'menu' : el?.className?.toString?.().includes('fixed inset-0') ? 'backdrop' : 'other';
+  }, [target.x, target.y]);
+  if (hit === 'menu') throw new Error('tap point resolved onto the menu — the geometry search is wrong');
+  note('card-menu', `dismissing tap aimed at card #${target.i} (${Math.round(target.x)}, ${Math.round(target.y)}), lands on: ${hit}`);
+
+  // Raw mouse click at the coordinates rather than locator.click(): the backdrop
+  // is meant to intercept, which is exactly what a real thumb does, and
+  // Playwright's actionability check would refuse the click rather than exercise
+  // the behaviour.
+  const tap = () => page.mouse.click(target.x, target.y);
+
+  await tap();
+  await page.waitForTimeout(300);
+  const afterDismiss = await menus.count();
+  note('card-menu', `tap on another card while a menu is open -> ${afterDismiss} menu(s) open (want 0)`);
+  if (afterDismiss !== 0) throw new Error(`dismissing tap also opened a menu (${afterDismiss} open, want 0)`);
+
+  await tap();
+  await page.waitForTimeout(300);
+  const afterSecondTap = await menus.count();
+  note('card-menu', `the following tap on that card -> ${afterSecondTap} menu(s) open (want 1)`);
+  if (afterSecondTap !== 1) throw new Error(`the next tap should open that card's menu (${afterSecondTap} open, want 1)`);
+
+  await shot('11b-card-menu-dismiss');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  if ((await menus.count()) !== 0) throw new Error('Escape did not close the action menu');
+});
+
 // ---------- 7. stats ----------
 await step('13-stats', async () => {
   await page.getByRole('button', { name: 'Stats', exact: true }).click();
