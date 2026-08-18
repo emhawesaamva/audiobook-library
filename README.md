@@ -55,14 +55,31 @@ npm run db:use-local  # point .env at the local stack (backs up your hosted .env
 
 `npm run db:stop` shuts it down. Studio is at http://127.0.0.1:54323.
 
-**Seeding the local stack.** A reset leaves you with an empty database and no way
-in, so `db:reset` finishes by running `scripts/seed-local.mjs`, which recreates a
-test account and its library and prints the sign-in details. The data comes from
-`supabase/seed-data.json` — gitignored, because a capture is somebody's real
-library. Arrange the books you want in the UI and run `npm run db:capture` to
-record them; every later reset restores exactly that. `npm run db:seed` re-applies
-without a reset. Without a seed file the script is a no-op, so a fresh clone still
-works. It refuses to run against the production project or any non-loopback URL.
+**Seeding the local stack.** A reset otherwise leaves an empty database and no way
+in, so it is seeded with a test account and library, and the sign-in details are
+printed at the end.
+
+```bash
+npm run db:capture    # record the current local library as the seed
+npm run db:seed       # re-apply it without a reset
+```
+
+`db:capture` writes two files, both gitignored because a capture is somebody's
+real library and this repo is public:
+
+- `supabase/seed-data.json` — the source of truth, applied over the REST API by
+  `npm run db:seed`.
+- `supabase/seed.sql` — generated from it, and run by the Supabase CLI's own
+  `[db.seed]` hook. This is what makes a bare `npx supabase db reset` seed
+  identically to `npm run db:reset`; the CLI hook only takes `.sql` files, so it
+  cannot call the script directly.
+
+Arrange the books you want in the UI, run `db:capture`, and every later reset
+restores exactly that. With no seed files present both paths are no-ops, so a
+fresh clone still works. The script refuses to run against the production project
+or any non-loopback URL, and the generated SQL aborts if the database already
+holds accounts other than the seed one — which is what stops
+`supabase db reset --linked` from seeding over a real project.
 
 **Hosted project.** Run the files in `supabase/migrations/` in filename order
 against a fresh Supabase project (SQL editor, or the Supabase MCP), then in the
