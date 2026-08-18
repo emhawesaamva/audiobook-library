@@ -22,7 +22,13 @@ import ContactModal from "./components/ContactModal.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./components/shared.jsx";
 import { Headphones, Sun, Moon, Settings as SettingsIcon, HelpCircle, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Local calendar date, not UTC — toISOString() rolls over to tomorrow's date in
+// the evening for anyone west of Greenwich, which throws off every consumer
+// that treats the string as local midnight (holdWeeksLeft, date_started, etc).
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 // Status transitions auto-set listening dates (still editable in the form).
 function withAutoDates(fields, prev) {
@@ -755,7 +761,7 @@ export default function App({ session, onSignOut }) {
       key={t}
       onClick={() => setTab(t)}
       aria-current={tab === t ? "page" : undefined}
-      className={`relative -mb-px rounded-t-lg border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
+      className={`relative -mb-px shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
         tab === t
           ? "border-accent-500 bg-accent-50 font-semibold text-zinc-900 dark:bg-accent-700/15 dark:text-white"
           // hover:bg must differ from the page itself — body is bg-zinc-100 in
@@ -800,7 +806,7 @@ export default function App({ session, onSignOut }) {
           <Headphones className="h-5 w-5 text-accent-500" />
           {/* library switcher — tabs extend down to the header's bottom border:
               extra bottom padding plus a negative margin canceling the header's py-2.5 */}
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {profiles.map((p) => (
               <button
                 key={p.id}
@@ -832,7 +838,7 @@ export default function App({ session, onSignOut }) {
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
             <ToolbarButton
               label={theme === "dark" ? "Light mode" : "Dark mode"}
               icon={theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
@@ -888,7 +894,7 @@ export default function App({ session, onSignOut }) {
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.loved}</strong> loved</span>
             </div>
           </div>
-          <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+          <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
             {tabBtn("library", "Library")}
             {tabBtn("recommend", "Recommend")}
             {tabBtn("holds", "Libby Holds")}
