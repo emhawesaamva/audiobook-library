@@ -66,11 +66,9 @@ surfaces these, via an endpoint we do not have.
 Both cases therefore read **"Audible only"**. If a deep-search endpoint is ever
 identified, the fourth state becomes possible.
 
-### Availability backfills slowly on large libraries
-The refresh is capped at 40 books per visit, three concurrent, and only runs for
-Recommended / Want books older than 24h. A library with hundreds of wanted books
-takes several visits to fully populate. Raise the cap, or add an explicit
-"refresh availability" action, if that becomes annoying.
+~~Availability backfills slowly on large libraries~~ — reviewed 2026-08-18,
+decided the current cap (40 books/visit, 3 concurrent, Recommended/Want older
+than 24h) is fine as-is; not worth an explicit refresh action or a higher cap.
 
 ### Series headers never show availability
 Only volumes are checked, since a header has no status of its own. A header for a
