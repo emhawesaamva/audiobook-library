@@ -199,16 +199,31 @@ export async function seriesVolumes(seriesAsin) {
 
 // Audiobook availability at a Libby/OverDrive library, via the same public
 // "Thunder" API the libbyapp.com front-end uses. Keyless; best-effort.
+//
+// English only, and deliberately so. Without `language=en` the search happily
+// matches a foreign-language edition of the same title and reports *its*
+// availability: Fairfax owns the Spanish Piranesi (3 copies, ~19 day wait) but
+// not the English one, so an English-language shelf was told to expect a
+// three-week wait for a book its library cannot lend it at all. The Libby deep
+// links this app builds are already pinned to language-en; this matches them.
+const LIBBY_LANGUAGE = "en";
+
 export async function libbyAvailability(libraryKey, title, author) {
   const q = encodeURIComponent(`${title} ${author ?? ""}`.trim());
   const data = await jget(
-    `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(libraryKey)}/media?query=${q}&format=audiobook-overdrive,audiobook-mp3&perPage=10`
+    `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(libraryKey)}/media?query=${q}&format=audiobook-overdrive,audiobook-mp3&language=${LIBBY_LANGUAGE}&perPage=10`
   );
   const norm = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const target = norm(title);
   const hit = (data.items ?? []).find((i) => {
     const t = norm(i.title);
-    return t === target || t.startsWith(target) || target.startsWith(t);
+    if (!(t === target || t.startsWith(target) || target.startsWith(t))) return false;
+    // Belt and braces: if the language filter is ever ignored or renamed, a
+    // wrong-language match would silently return to reporting the wrong
+    // edition's wait. Records without a language list are let through rather
+    // than dropped, since absence is not evidence of a foreign edition.
+    const langs = (i.languages ?? []).map((l) => l?.id).filter(Boolean);
+    return langs.length === 0 || langs.includes(LIBBY_LANGUAGE);
   });
   if (!hit || !hit.isOwned) return { owned: false };
   return {
@@ -220,6 +235,18 @@ export async function libbyAvailability(libraryKey, title, author) {
   };
 }
 
+// Catalogue data (title search, series listings) is effectively static, so a
+// long edge cache is free. Availability is not, and a long TTL there is
+// actively harmful: it changes as copies are lent and returned, a deploy does
+// not invalidate it, and the client writes whatever it receives into its own
+// 24h cache. That compounded once already — the language fix shipped, edge
+// nodes kept serving the pre-fix answer, and the stale value was persisted for
+// another day, so users kept seeing a three-week wait for a book their library
+// does not own. The 24h client cache is the real cache; the edge only needs to
+// absorb bursts.
+const CACHE_CATALOGUE = "public, max-age=3600";
+const CACHE_AVAILABILITY = "public, max-age=60";
+
 // Connect/Vercel-compatible request handler.
 export async function handleMetadataRequest(req, res) {
   try {
@@ -228,16 +255,26 @@ export async function handleMetadataRequest(req, res) {
     const series = url.searchParams.get("series");
     const libby = url.searchParams.get("libby");
     let payload;
-    if (libby && q) payload = await libbyAvailability(libby, q, url.searchParams.get("author"));
-    else if (series) payload = await seriesVolumes(series);
+    let cache = CACHE_CATALOGUE;
+    if (libby && q) {
+      payload = await libbyAvailability(libby, q, url.searchParams.get("author"));
+      cache = CACHE_AVAILABILITY;
+    } else if (series) payload = await seriesVolumes(series);
     else if (q) payload = await searchBooks(q, Number(url.searchParams.get("limit")) || 8);
-    else { res.statusCode = 400; res.end(JSON.stringify({ error: "q or series required" })); return; }
+    else {
+      res.statusCode = 400;
+      res.setHeader("Cache-Control", "no-store");
+      res.end(JSON.stringify({ error: "q or series required" }));
+      return;
+    }
     res.setHeader("Content-Type", "application/json");
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cache-Control", cache);
     res.end(JSON.stringify(payload));
   } catch (err) {
     res.statusCode = 502;
     res.setHeader("Content-Type", "application/json");
+    // Never let a transient upstream failure be cached as if it were an answer.
+    res.setHeader("Cache-Control", "no-store");
     res.end(JSON.stringify({ error: err.message ?? "metadata lookup failed" }));
   }
 }

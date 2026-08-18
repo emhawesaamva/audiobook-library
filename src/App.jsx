@@ -3,22 +3,32 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
-import { searchBooks as metaSearch, resultToBook } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating, flattenBooks, sameTitle } from "./lib/bookUtils.js";
+import { searchBooks as metaSearch, resultToBook, libbyAvailability } from "./lib/metadata.js";
+import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold } from "./lib/bookUtils.js";
+import { booksNeedingLibbyCheck, toLibbyState } from "./lib/libbyStatus.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
 import SeriesModal from "./components/SeriesModal.jsx";
 import Recommend from "./components/Recommend.jsx";
 import Stats from "./components/Stats.jsx";
+import Holds from "./components/Holds.jsx";
+import HoldModal from "./components/HoldModal.jsx";
 import Settings from "./components/Settings.jsx";
 import Admin from "./components/Admin.jsx";
 import UpNext from "./components/UpNext.jsx";
 import AudiblePromo from "./components/AudiblePromo.jsx";
 import OnboardingWizard from "./components/OnboardingWizard.jsx";
-import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, labelCls } from "./components/shared.jsx";
-import { Headphones, Sun, Moon, Settings as SettingsIcon, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
+import ContactModal from "./components/ContactModal.jsx";
+import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./components/shared.jsx";
+import { Headphones, Sun, Moon, Settings as SettingsIcon, HelpCircle, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Local calendar date, not UTC — toISOString() rolls over to tomorrow's date in
+// the evening for anyone west of Greenwich, which throws off every consumer
+// that treats the string as local midnight (holdWeeksLeft, date_started, etc).
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 // Status transitions auto-set listening dates (still editable in the form).
 function withAutoDates(fields, prev) {
@@ -95,6 +105,56 @@ const crowdRating = (b) =>
     ...(b.books ?? []).map((c) => Number(c.goodreads_rating) || 0)
   );
 
+// Sorting by anything other than status/rating orders books by a value that
+// isn't otherwise visible on the card (crowd rating, date added, first
+// letter, length) — so those sorts get section headings to surface it.
+// Bucketing must stay monotonic with each comparator in `shown` below so
+// same-bucket entries land adjacently and headings never repeat.
+function sortGroupLabel(sortBy, b) {
+  switch (sortBy) {
+    case "crowd": {
+      const r = crowdRating(b);
+      if (!(r > 0)) return "Crowd: unrated";
+      return `Crowd: ${(Math.round(r * 2) / 2).toFixed(1).replace(/\.0$/, "")}`;
+    }
+    case "title": {
+      const c = (b.title ?? "").trim()[0]?.toUpperCase() ?? "";
+      return `Title: ${/[A-Z]/.test(c) ? c : "#"}`;
+    }
+    case "author": {
+      const c = (b.author ?? "").trim()[0]?.toUpperCase() ?? "";
+      return `Author: ${/[A-Z]/.test(c) ? c : "#"}`;
+    }
+    case "recent": {
+      if (!b.created_at) return "Added: unknown";
+      return `Added: ${new Date(b.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`;
+    }
+    case "duration": {
+      if (b.is_series) return "Length: series";
+      const m = b.duration_minutes;
+      if (!m) return "Length: unknown";
+      const h = Math.floor(m / 60);
+      if (h < 5) return "Length: under 5h";
+      if (h < 10) return "Length: 5–10h";
+      if (h < 15) return "Length: 10–15h";
+      if (h < 20) return "Length: 15–20h";
+      return "Length: 20h+";
+    }
+    default: // status, rating — already visible on every card, no heading
+      return null;
+  }
+}
+
+function GroupHeading({ label, grid = false }) {
+  return (
+    <div
+      className={`${grid ? "col-span-full mb-1.5 mt-5 px-0.5 first:mt-0" : "border-b border-zinc-100 bg-zinc-50/70 px-3 py-1.5 dark:border-zinc-800/60 dark:bg-zinc-900/40"} text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500`}
+    >
+      {label}
+    </div>
+  );
+}
+
 export default function App({ session, onSignOut }) {
   const uid = session.user.id;
 
@@ -115,8 +175,10 @@ export default function App({ session, onSignOut }) {
   const [sortBy, setSortBy] = useState("status");
 
   const [form, setForm] = useState(null);          // {book} | null
+  const [hold, setHold] = useState(null);          // {book, editing} | null
   const [seriesOpen, setSeriesOpen] = useState(null); // series id | null
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [onboarding, setOnboarding] = useState(false); // welcome framing in settings after creating a library
@@ -298,23 +360,73 @@ export default function App({ session, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booksReady, activeId]);
 
+  // ---- Libby availability refresh ----
+  // Recommended / Want books carry a cached availability state so cards render
+  // instantly from the library load. Anything older than a day is refreshed in
+  // the background, a few at a time — this hits an undocumented OverDrive
+  // endpoint, so it stays deliberately unhurried and capped per visit.
+  const libbyChecked = useRef(new Set());
+  useEffect(() => {
+    const key = prefs.libby_key;
+    if (!booksReady || !activeId || !key) return;
+    const mark = `${activeId}:${key}`;
+    if (libbyChecked.current.has(mark)) return;
+    libbyChecked.current.add(mark);
+
+    const due = booksNeedingLibbyCheck(books, { limit: 40 });
+    if (!due.length) return;
+
+    const profileId = activeId;
+    (async () => {
+      const CONCURRENCY = 3;
+      let cursor = 0;
+      let changed = false;
+      const worker = async () => {
+        while (cursor < due.length) {
+          const book = due[cursor++];
+          if (activeIdRef.current !== profileId) return;
+          let patch;
+          try {
+            patch = toLibbyState(await libbyAvailability(key, book.title, book.author));
+          } catch {
+            continue; // transient; try again next visit rather than caching a lie
+          }
+          try {
+            await db.updateBook(book.id, { ...patch, libby_checked_at: new Date().toISOString() });
+            changed = true;
+          } catch { /* not worth surfacing — the badge just stays stale */ }
+        }
+      };
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+      if (changed && activeIdRef.current === profileId) await refreshBooks(profileId);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booksReady, activeId, prefs.libby_key]);
+
   // ---- mutations ----
   const saveBook = async (fields, { targetSeriesId } = {}) => {
     const isNew = !fields.id;
+    let created = null;
     if (fields.id) {
       const prev = books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).find((b) => b.id === fields.id);
       await db.updateBook(fields.id, withAutoDates(fields, prev));
     } else if (targetSeriesId) {
       const series = books.find((b) => b.id === targetSeriesId);
-      await db.createBook({
+      created = await db.createBook({
         ...withAutoDates(fields), profile_id: activeId, parent_id: targetSeriesId,
         series_position: (series?.books?.length ?? 0) + 1,
       });
     } else {
-      await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
+      created = await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
     }
     await refreshBooks();
     if (isNew && !fields.is_series) maybePromoteAudible(fields);
+    // Manually creating a new (empty) series: close the form and jump
+    // straight into it, same as the "add entire series" flow below.
+    if (isNew && fields.is_series && created) {
+      setForm(null);
+      setSeriesOpen(created.id);
+    }
   };
 
   // Bulk import with automatic series grouping: rows may carry a transient
@@ -373,6 +485,8 @@ export default function App({ session, onSignOut }) {
       await db.createBooks(volumes.map((v) => ({ ...v, profile_id: activeId, parent_id: parent.id })));
     }
     await refreshBooks();
+    setForm(null);
+    setSeriesOpen(parent.id);
   };
 
   const guard = (fn) => async (...args) => {
@@ -385,6 +499,15 @@ export default function App({ session, onSignOut }) {
     if (getStatus(book) === "recommended") db.addRejected(activeId, book.title).catch(() => {});
     await refreshBooks();
     setToast({ text: `Deleted "${book.title}"` });
+  });
+
+  // Deleting the series header cascades (books.parent_id is ON DELETE
+  // CASCADE), so every volume in it goes too — SeriesModal warns first.
+  const removeSeries = guard(async (series) => {
+    await db.deleteBook(series.id);
+    await refreshBooks();
+    setSeriesOpen(null);
+    setToast({ text: `Deleted "${series.title}" and its books` });
   });
 
   // ---- up-next queue ----
@@ -413,6 +536,55 @@ export default function App({ session, onSignOut }) {
     await refreshBooks();
     setToast({ text: queued ? "Removed from Up Next" : "Added to Up Next" });
   });
+
+  // ---- library holds ----
+  // A hold is an indicator, not a status. The one status side effect: a book
+  // you went and placed a hold on is plainly no longer just "recommended".
+  const saveHold = guard(async (book, weeks) => {
+    const stamp = { hold_weeks: weeks, hold_date: today() };
+    if (book.id) {
+      const patch = { ...stamp };
+      if (book.status === "recommended") patch.status = "wanttoread";
+      await db.updateBook(book.id, patch);
+    } else {
+      // Straight from the Recommend tab: the book isn't in the library yet, so
+      // the hold is what files it. Enrich first — a cover and duration matter
+      // on a shelf you'll be staring at for the next several weeks.
+      let enriched = {};
+      try {
+        const { results } = await metaSearch(`${book.title} ${book.author ?? ""}`, 3);
+        if (results[0]) enriched = resultToBook(results[0]);
+      } catch { /* metadata is best-effort */ }
+      await db.createBook({
+        profile_id: activeId,
+        author: book.author,
+        genre: book.genre || "Science Fiction",
+        subgenre: book.subgenre || "",
+        recommended_by: "AudioLib",
+        year: book.year ? Number(book.year) : null,
+        ...enriched,
+        title: enriched.title || book.title,
+        status: "wanttoread",
+        ...stamp,
+      });
+    }
+    await refreshBooks();
+    setHold(null);
+    setToast({ text: `Hold saved — about ${weeks} week${weeks === 1 ? "" : "s"}` });
+  });
+
+  const clearHold = guard(async (book) => {
+    await db.updateBook(book.id, { hold_weeks: null, hold_date: null });
+    await refreshBooks();
+    setHold(null);
+    setToast({ text: "Hold cleared" });
+  });
+
+  // Raised when a Libby link is opened for a book that isn't borrowed yet.
+  // Already holding it? Go straight to the editor rather than re-asking.
+  // `suggestWeeks` carries Libby's own reported wait from the Recommend tab.
+  const promptHold = (book, suggestWeeks = null) =>
+    setHold({ book, editing: hasHold(book), suggestWeeks });
 
   const startListening = guard(async (book) => {
     await db.updateBook(book.id, { status: "reading", date_started: today(), queue_position: null });
@@ -543,6 +715,22 @@ export default function App({ session, onSignOut }) {
   });
   const page = useMemo(() => shown.slice(0, visibleCount), [shown, visibleCount]);
 
+  // Interleave section headings into the page whenever the active sort
+  // exposes info not otherwise shown on the card (see sortGroupLabel).
+  const pageRows = useMemo(() => {
+    let prevLabel;
+    const rows = [];
+    for (const b of page) {
+      const label = sortGroupLabel(sortBy, b);
+      if (label != null && label !== prevLabel) {
+        rows.push({ type: "heading", label, key: `h-${rows.length}-${label}` });
+        prevLabel = label;
+      }
+      rows.push({ type: "book", book: b });
+    }
+    return rows;
+  }, [page, sortBy]);
+
   const stats = useMemo(() => {
     const read = books.filter((b) => getStatus(b) === "read");
     return {
@@ -565,18 +753,28 @@ export default function App({ session, onSignOut }) {
     onDelete: () => removeBook(b),
     onOpen: b.is_series ? () => openSeries(b.id) : undefined,
     onQueueToggle: !b.is_series ? () => queueToggle(b) : undefined,
+    onLibbyHold: !b.is_series ? promptHold : undefined,
   });
 
   // A fresh library holds only the two auto-recommended starter titles — show
   // an explainer card alongside them until the user adds a book of their own.
   const showRecExplainer = books.length === 2 && books.every((b) => getStatus(b) === "recommended");
 
+  // Underline tabs: the row sits on a shared baseline and the active tab's
+  // marker sits *on* that line (-mb-px), so the selected tab reads as connected
+  // to the panel below rather than as one more button in a row of buttons.
   const tabBtn = (t, label) => (
     <button
       key={t}
       onClick={() => setTab(t)}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
-        tab === t ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      aria-current={tab === t ? "page" : undefined}
+      className={`relative -mb-px shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2 text-sm transition cursor-pointer ${
+        tab === t
+          ? "border-accent-500 bg-accent-50 font-semibold text-zinc-900 dark:bg-accent-700/15 dark:text-white"
+          // hover:bg must differ from the page itself — body is bg-zinc-100 in
+          // light mode, so hovering used to paint the tab the same colour as its
+          // background and read as nothing happening.
+          : "border-transparent font-medium text-zinc-500 hover:border-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
       }`}
     >
       {label}
@@ -615,7 +813,7 @@ export default function App({ session, onSignOut }) {
           <Headphones className="h-5 w-5 text-accent-500" />
           {/* library switcher — tabs extend down to the header's bottom border:
               extra bottom padding plus a negative margin canceling the header's py-2.5 */}
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {profiles.map((p) => (
               <button
                 key={p.id}
@@ -647,7 +845,7 @@ export default function App({ session, onSignOut }) {
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
             <ToolbarButton
               label={theme === "dark" ? "Light mode" : "Dark mode"}
               icon={theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
@@ -677,6 +875,11 @@ export default function App({ session, onSignOut }) {
               />
             </span>
             <ToolbarButton
+              label="Contact us"
+              icon={<HelpCircle className="h-4 w-4 shrink-0" />}
+              onClick={() => setContactOpen(true)}
+            />
+            <ToolbarButton
               label="Settings"
               icon={<SettingsIcon className="h-4 w-4 shrink-0" />}
               onClick={() => setSettingsOpen(true)}
@@ -698,10 +901,11 @@ export default function App({ session, onSignOut }) {
               <span><strong className="text-zinc-600 dark:text-zinc-300">{stats.loved}</strong> loved</span>
             </div>
           </div>
-          <nav className="flex gap-1">
+          <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
             {tabBtn("library", "Library")}
-            {tabBtn("stats", "Stats")}
             {tabBtn("recommend", "Recommend")}
+            {tabBtn("holds", "Libby Holds")}
+            {tabBtn("stats", "Stats")}
             {account?.is_admin && tabBtn("admin", "Admin")}
           </nav>
         </div>
@@ -785,13 +989,13 @@ export default function App({ session, onSignOut }) {
                     </button>
                   )}
                 </div>
-                <select value={genre} onChange={(e) => setGenre(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={genre} onChange={(e) => setGenre(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   {genres.map((g) => <option key={g} value={g}>{g === "all" ? "All genres" : g}</option>)}
                 </select>
-                <select value={minRating} onChange={(e) => setMinRating(Number(e.target.value))} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={minRating} onChange={(e) => setMinRating(Number(e.target.value))} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   <option value={0}>Any rating</option><option value={4.5}>4.5★+</option><option value={4}>4★+</option><option value={3}>3★+</option>
                 </select>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${inputCls} !w-auto !py-1.5`}>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
                   {SORTS.map(([v, l]) => <option key={v} value={v}>Sort: {l}</option>)}
                 </select>
                 {(filter !== "all" || genre !== "all" || minRating !== 0 || sortBy !== "status" || search) && (
@@ -843,7 +1047,11 @@ export default function App({ session, onSignOut }) {
             ) : view === "covers" ? (
               <>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-                  {page.map((b) => <BookCoverTile key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} grid />
+                      : <BookCoverTile key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="covers" />}
                 </div>
                 <div ref={sentinelRef} />
@@ -851,7 +1059,11 @@ export default function App({ session, onSignOut }) {
             ) : view === "list" ? (
               <>
                 <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                  {page.map((b) => <BookListRow key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} />
+                      : <BookListRow key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="list" />}
                 </div>
                 <div ref={sentinelRef} />
@@ -859,13 +1071,25 @@ export default function App({ session, onSignOut }) {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {page.map((b) => <BookCardGrid key={b.id} {...cardProps(b)} />)}
+                  {pageRows.map((row) =>
+                    row.type === "heading"
+                      ? <GroupHeading key={row.key} label={row.label} grid />
+                      : <BookCardGrid key={row.book.id} {...cardProps(row.book)} />
+                  )}
                   {showRecExplainer && <RecExplainerCard view="cards" />}
                 </div>
                 <div ref={sentinelRef} />
               </>
             )}
           </>
+        )}
+
+        {tab === "holds" && (
+          <Holds
+            books={books}
+            libbyKey={prefs.libby_key}
+            onEditHold={(book) => setHold({ book, editing: true })}
+          />
         )}
 
         {tab === "stats" && (
@@ -888,6 +1112,7 @@ export default function App({ session, onSignOut }) {
             libbyKey={prefs.libby_key}
             affiliateTag={appSettings.affiliate_tag || null}
             onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}
+            onLibbyHold={promptHold}
             onAdd={async (fields) => { await db.createBook({ ...fields, profile_id: activeId }); refreshBooks(); maybePromoteAudible(fields); }}
             onToast={setToast}
           />
@@ -918,15 +1143,30 @@ export default function App({ session, onSignOut }) {
         />
       )}
 
+      {hold && (
+        <HoldModal
+          book={hold.book}
+          editing={hold.editing}
+          suggestWeeks={hold.suggestWeeks}
+          willAdd={!hold.book.id}
+          libbyKey={prefs.libby_key}
+          onSave={(weeks) => saveHold(hold.book, weeks)}
+          onClear={() => clearHold(hold.book)}
+          onClose={() => setHold(null)}
+        />
+      )}
+
       {activeSeries && (
         <SeriesModal
           series={activeSeries}
           recommenders={recommenders}
           allTags={allTags}
           libbyKey={prefs.libby_key}
+          onLibbyHold={promptHold}
           affiliateTag={appSettings.affiliate_tag || null}
           onClose={() => setSeriesOpen(null)}
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
+          onDeleteSeries={() => removeSeries(activeSeries)}
           onSaveSub={async (id, fields) => {
             if (id) await db.updateBook(id, withAutoDates(fields));
             else await db.createBook({
@@ -989,6 +1229,14 @@ export default function App({ session, onSignOut }) {
           onAudibleSubscriberChange={(v) => savePrefs({ audible_subscriber: v })}
           onClose={() => { setSettingsOpen(false); setOnboarding(false); }}
           onSignOut={onSignOut}
+          onToast={setToast}
+        />
+      )}
+
+      {contactOpen && (
+        <ContactModal
+          email={session.user.email}
+          onClose={() => setContactOpen(false)}
           onToast={setToast}
         />
       )}

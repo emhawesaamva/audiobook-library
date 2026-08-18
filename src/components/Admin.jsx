@@ -1,7 +1,7 @@
 // Admin tab (owner only): user list with usage counts, app settings.
 import { useState, useEffect } from "react";
 import supabase from "../lib/supabase.js";
-import { setAppSetting } from "../lib/db.js";
+import { setAppSetting, listFeedback } from "../lib/db.js";
 import { Spinner, labelCls, inputCls, btnSecondary } from "./shared.jsx";
 import { claudeFetch } from "../lib/ai.js";
 import { Trash2 } from "lucide-react";
@@ -15,6 +15,8 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
   const [affiliateCode, setAffiliateCode] = useState(appSettings.affiliate_tag ?? "");
   const [savingAffiliate, setSavingAffiliate] = useState(false);
   const [tests, setTests] = useState({}); // { claude|gemini: { loading, ok, text, answered, error } }
+  const [feedback, setFeedback] = useState(null);
+  const [feedbackError, setFeedbackError] = useState(null);
 
   // Send a one-line "hello" through the /v1/messages proxy. "claude" uses the
   // normal path (and will reveal if it fell back to Gemini); "gemini" forces
@@ -53,6 +55,13 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
         setUsers(data.users);
       } catch (e) {
         setError(e.message);
+      }
+    })();
+    (async () => {
+      try {
+        setFeedback(await listFeedback());
+      } catch (e) {
+        setFeedbackError(e.message);
       }
     })();
   }, []);
@@ -258,6 +267,31 @@ export default function Admin({ appSettings, onSettingsChange, onToast }) {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="border-b border-zinc-100 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">
+          Feedback {feedback && `(${feedback.length})`}
+        </div>
+        {feedbackError && <div className="px-4 py-3 text-sm text-red-600">{feedbackError}</div>}
+        {!feedback && !feedbackError && <div className="flex justify-center py-8"><Spinner className="h-5 w-5 text-zinc-500 dark:text-zinc-400" /></div>}
+        {feedback && (
+          feedback.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">No feedback yet.</div>
+          ) : (
+            <div className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+              {feedback.map((f) => (
+                <div key={f.id} className="px-4 py-3">
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                    <span className="text-sm font-medium">{f.email}</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">{f.created_at?.slice(0, 10)}</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{f.message}</p>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

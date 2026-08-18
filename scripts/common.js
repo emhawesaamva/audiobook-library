@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { refFromUrl, assertNotProductionUrl } from "./production-refs.js";
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -32,6 +33,20 @@ const baseHeaders = {
   "User-Agent": "library-migration/1.0",
   "Content-Type": "application/json",
 };
+
+// Re-exported from production-refs.js so scripts that already import common.js
+// keep working; that module is side-effect-free and is the single source of
+// truth for which refs are production.
+export { PRODUCTION_REFS, refFromUrl, isProductionUrl } from "./production-refs.js";
+
+export function projectRef() {
+  return refFromUrl(BASE);
+}
+
+// Call at the top of any script that creates or destroys accounts.
+export function assertNotProduction(scriptName = "this script") {
+  return assertNotProductionUrl(BASE, scriptName);
+}
 
 export async function rest(path, { method = "GET", body, headers = {} } = {}) {
   const r = await fetch(`${BASE}/rest/v1/${path}`, {

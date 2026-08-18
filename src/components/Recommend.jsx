@@ -47,22 +47,27 @@ function LibbySetupDialog({ book, onSave, onClose }) {
   );
 }
 
-function LibbyBadge({ status, book, libbyKey }) {
+// Opening a badge asks whether a hold was placed, same as the Libby links in
+// the library. These recommendations aren't saved books yet, so confirming a
+// hold is what adds them (see saveHold in App).
+function LibbyBadge({ status, book, libbyKey, onHold }) {
   if (!status) return null;
   const base = "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-bold";
   const href = libbySearchUrl(book, libbyKey);
+  // Suggest the wait Libby already reported, rounded up to whole weeks.
+  const click = () => onHold?.(book, status.waitDays != null ? Math.max(1, Math.ceil(status.waitDays / 7)) : null);
   if (!status.owned)
     return <span className={`${base} bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500`}>NOT ON LIBBY</span>;
   if (status.available)
-    return <a href={href} target="_blank" rel="noopener noreferrer" className={`${base} bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900`}>LIBBY ✓ AVAILABLE</a>;
+    return <a href={href} target="_blank" rel="noopener noreferrer" onClick={click} className={`${base} bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900`}>LIBBY ✓ AVAILABLE</a>;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={`${base} bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900`}>
+    <a href={href} target="_blank" rel="noopener noreferrer" onClick={click} className={`${base} bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900`}>
       LIBBY · {status.waitDays != null ? `~${status.waitDays}d wait` : `${status.holds} holds`}
     </a>
   );
 }
 
-export default function Recommend({ books, profileName, ageGroup, model, libbyKey, affiliateTag, onLibbyKeyChange, onAdd, onToast }) {
+export default function Recommend({ books, profileName, ageGroup, model, libbyKey, affiliateTag, onLibbyKeyChange, onAdd, onLibbyHold, onToast }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -221,7 +226,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
               {libbyKey ? (
-                <LibbyBadge status={libbyStatus[r.title]} book={r} libbyKey={libbyKey} />
+                <LibbyBadge status={libbyStatus[r.title]} book={r} libbyKey={libbyKey} onHold={onLibbyHold} />
               ) : (
                 <button
                   onClick={() => setLibbySetup(r)}

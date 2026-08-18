@@ -118,6 +118,19 @@ export const inputCls =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 export const labelCls = "mb-1 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400";
 
+// <select> needs appearance-none (Safari's native control box doesn't honor
+// padding/line-height the way <input>'s does, so it renders a different
+// height than a same-classed input) plus a hand-drawn arrow to replace the
+// one that removes. Pair with `style={selectArrowStyle}` on every <select>.
+export const selectCls = `${inputCls} appearance-none pr-8 cursor-pointer`;
+export const selectArrowStyle = {
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20fill='none'%20viewBox='0%200%2020%2020'%3E%3Cpath%20stroke='%2371717a'%20stroke-linecap='round'%20stroke-linejoin='round'%20stroke-width='1.5'%20d='M6%208l4%204%204-4'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 0.6rem center",
+  backgroundSize: "1rem",
+};
+
 export function Spinner({ className = "h-4 w-4" }) {
   return (
     <span className={`inline-block ${className} rounded-full border-2 border-current border-t-transparent`} style={{ animation: "spin 0.7s linear infinite" }} />

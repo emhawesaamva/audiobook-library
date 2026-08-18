@@ -2,7 +2,7 @@
 // authors/narrators/genres, rating distribution, superlatives, year selector.
 import { useMemo, useState } from "react";
 import { flattenBooks, fmtDuration } from "../lib/bookUtils.js";
-import { inputCls, labelCls } from "./shared.jsx";
+import { inputCls, selectCls, selectArrowStyle, labelCls } from "./shared.jsx";
 import { Ruler, Repeat, Ban, Users, Flame, Gem, UserRound, RefreshCw } from "lucide-react";
 
 function StatCard({ value, label, sub }) {
@@ -161,7 +161,7 @@ export default function Stats({ books, goals, onSetGoal, readOnly = false, title
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${inputCls} !w-28`}>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${selectCls} !w-28`} style={selectArrowStyle}>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
