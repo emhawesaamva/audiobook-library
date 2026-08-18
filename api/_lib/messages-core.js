@@ -123,7 +123,7 @@ async function flagCreditExhausted(supabaseUrl, secretKey) {
   }
 }
 
-async function callGemini(body, geminiKey) {
+export async function callGemini(body, geminiKey) {
   const r = await fetch(GEMINI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-goog-api-key": geminiKey },
@@ -132,7 +132,7 @@ async function callGemini(body, geminiKey) {
   return geminiToAnthropicResponse(await r.json());
 }
 
-export async function handleMessages(req, res, { anthropicKey, geminiKey, supabaseUrl, supabaseSecret }) {
+export async function handleMessages(req, res, { anthropicKey, geminiKey, supabaseUrl, supabaseSecret, forceGemini } = {}) {
   const json = makeJson(res);
 
   let body;
@@ -140,6 +140,18 @@ export async function handleMessages(req, res, { anthropicKey, geminiKey, supaba
     body = await readBody(req);
   } catch {
     return json(400, { type: "error", error: { type: "invalid_request_error", message: "Invalid JSON body" } });
+  }
+
+  // Forced Gemini: skip Anthropic entirely. Used when forcing real AI in tests
+  // (so it doesn't spend Anthropic credits) and by any caller that sets the
+  // x-force-gemini header. Falls through to the normal flow if no Gemini key.
+  if ((forceGemini || req.headers?.["x-force-gemini"] === "1") && geminiKey) {
+    try {
+      const gem = await callGemini(body, geminiKey);
+      return json(gem?.error ? 502 : 200, gem);
+    } catch (err) {
+      return json(500, { type: "error", error: { type: "proxy_error", message: err.message || "Gemini request failed" } });
+    }
   }
 
   let status, data;

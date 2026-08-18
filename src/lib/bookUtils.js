@@ -175,6 +175,7 @@ const BOOK_COLUMNS = new Set([
   "dnf_reason", "recommended_by", "queue_position", "reread_count", "tags",
   "hold_weeks", "hold_date",
   "libby_state", "libby_wait_days", "libby_checked_at",
+  "source",
 ]);
 
 export function cleanBookFields(fields) {

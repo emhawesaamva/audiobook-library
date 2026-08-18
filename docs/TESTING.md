@@ -1,9 +1,14 @@
 # Testing
 
 All routine test commands are deterministic and free — the paid/external APIs
-(Claude and the Audible metadata proxy) are **stubbed by default**. Each
+(the AI proxy and the Audible metadata proxy) are **stubbed by default**. Each
 external-dependent suite has a `USE_REAL_AI=1` (or `RUN_AI_TESTS=1`) opt-out to
 run against the live services when you want true end-to-end confirmation.
+
+> **Forced AI in tests uses Gemini, not Claude.** When you opt into real AI, the
+> requests are tagged so the proxy skips Anthropic and goes straight to Gemini
+> (`x-force-gemini` header → `handleMessages` in `api/_lib/messages-core.js`).
+> This keeps test runs off Anthropic credits. Requires `GEMINI_API_KEY` in `.env`.
 
 ## Quick reference
 
@@ -13,9 +18,9 @@ run against the live services when you want true end-to-end confirmation.
 | `npm run test:e2e` | Full desktop functional E2E (27 flows) | stubbed | **yes** |
 | `npm run test:mobile` | Mobile layout audit (390px + 320px) | stubbed | **yes** |
 | `npm run test:integration` | Supabase auth/RLS checks | live Supabase | no |
-| `RUN_AI_TESTS=1 node --test test/ai-live.test.js` | Live Claude column-mapping | **live Claude** | no |
-| `USE_REAL_AI=1 npm run test:e2e` | Desktop E2E against real APIs | **live** | yes |
-| `USE_REAL_AI=1 npm run test:mobile` | Mobile audit against real content | **live** | yes |
+| `RUN_AI_TESTS=1 node --test test/ai-live.test.js` | Live column-mapping via Gemini | **live Gemini** | no |
+| `USE_REAL_AI=1 npm run test:e2e` | Desktop E2E against real APIs (AI via Gemini) | **live** | yes |
+| `USE_REAL_AI=1 npm run test:mobile` | Mobile audit against real content (AI via Gemini) | **live** | yes |
 
 > Windows note: the env-var commands above use POSIX syntax. In PowerShell use
 > `$env:RUN_AI_TESTS=1; node --test test/ai-live.test.js` (and unset after).
@@ -53,13 +58,15 @@ wrapping is re-tested every run. Produces findings + screenshots, not pass/fail.
 
 ## Live AI (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`)
 
-The stubs verify *our* integration; these verify the *seam* with the providers.
+The stubs verify *our* integration; these verify the *seam* with the provider.
 Run them: before a deploy, after changing a prompt / model id / response shape /
-the proxy, or on a schedule. They require account API credits. See
-`docs/DESIGN-ai-assisted-imports.md` for the stubbing rationale.
+the proxy, or on a schedule. They go through **Gemini** (see the note at the top)
+and need `GEMINI_API_KEY`. `ai-live.test.js` retries transient Gemini "high
+demand" errors so a green/red result reflects code health, not provider load.
+See `docs/DESIGN-ai-assisted-imports.md` for the stubbing rationale.
 
 ## Prerequisites
 
 - `npm run dev` running on `:5173` for the E2E and mobile suites.
 - `.env` with `VITE_SUPABASE_URL`, `SUPABASE_SECRET_KEY` (self-provisioning test
-  accounts) and `ANTHROPIC_API_KEY` (only for live runs).
+  accounts) and `GEMINI_API_KEY` (for live AI runs).

@@ -472,6 +472,13 @@ export default function App({ session, onSignOut }) {
     return { seriesCount };
   };
 
+  // Apply smart-merge patches from a library update (re-import). Each entry is
+  // { id, patch } produced by diffImport/mergeBook; refresh once at the end.
+  const updateBooks = async (updates) => {
+    for (const u of updates) await db.updateBook(u.id, u.patch);
+    await refreshBooks();
+  };
+
   const saveSeries = async (header, volumes) => {
     const parent = await db.createBook({ ...header, profile_id: activeId, is_series: true });
     if (volumes.length) {
@@ -1190,6 +1197,7 @@ export default function App({ session, onSignOut }) {
             setProfiles(profiles.map((x) => (x.id === activeId ? p : x)));
           }}
           onImportBooks={importBooks}
+          onUpdateBooks={updateBooks}
           onToast={setToast}
           onClose={() => { setOnboarding(false); setSettingsOpen(false); refreshBooks(); }}
         />
@@ -1213,6 +1221,7 @@ export default function App({ session, onSignOut }) {
           }}
           onDeleteProfile={deleteActiveProfile}
           onImportBooks={importBooks}
+          onUpdateBooks={updateBooks}
           onRefreshDone={refreshBooks}
           libbyKey={prefs.libby_key ?? ""}
           onLibbyKeyChange={(k) => savePrefs({ libby_key: k })}

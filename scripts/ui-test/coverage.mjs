@@ -101,6 +101,19 @@ const UNKNOWN_CSV = [
 const CSV_PATH = path.join(FIXTURES, "coverage-unknown.csv");
 writeFileSync(CSV_PATH, UNKNOWN_CSV);
 
+// ---- "Update" re-import fixture (recognized Goodreads format that overlaps
+// the library) -> exercises the diff/UpdateConfirm flow. Re-lists two books
+// already added via paste import (Recursion currently want-to-read; The Martian
+// already read & unchanged) plus one brand-new title. Expect: 1 new, 1 changed.
+const UPDATE_CSV = [
+  "Title,Author,My Rating,Exclusive Shelf,Date Read,Average Rating",
+  "Recursion,Blake Crouch,,read,2026/02/01,4.10",
+  "The Martian,Andy Weir,,read,,",
+  "The Three-Body Problem,Cixin Liu,,to-read,,",
+].join("\n");
+const UPDATE_CSV_PATH = path.join(FIXTURES, "coverage-update-goodreads.csv");
+writeFileSync(UPDATE_CSV_PATH, UPDATE_CSV);
+
 // ---- account ----
 async function resetAccount() {
   const u = await findUserByEmail(EMAIL);
@@ -119,6 +132,12 @@ if (STUB) {
   await page.route("**/v1/messages", (r) => r.fulfill(stubClaude(r.request().postData())));
   await page.route("**/api/metadata**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) }));
   console.log("external APIs STUBBED (USE_REAL_AI=1 to run live)");
+} else {
+  // Forcing real AI in tests uses Gemini, not Anthropic — tag each AI request so
+  // the proxy skips Anthropic entirely (see api/_lib/messages-core.js).
+  await page.route("**/v1/messages", (r) =>
+    r.continue({ headers: { ...r.request().headers(), "x-force-gemini": "1" } }));
+  console.log("live AI forced via GEMINI");
 }
 
 // Outbound links (Libby, Audible, Goodreads) are target=_blank. Clicking one
@@ -407,6 +426,33 @@ try {
     await page.getByText(/The Martian/).first().waitFor({ state: "visible", timeout: 30000 });
     await page.getByRole("button", { name: /Looks right — import/ }).click();
     await page.waitForTimeout(600);
+  });
+
+  // ---------- UPDATE (re-import a recognized export that overlaps the library) ----------
+  await step("update-reimport-shows-diff-and-applies", async () => {
+    await openSettings();
+    const enrich = page.locator('input[type="checkbox"]').first();
+    if (await enrich.isChecked().catch(() => false)) await enrich.uncheck();
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByRole("button", { name: /Import/ }).first().click(),
+    ]);
+    await chooser.setFiles(UPDATE_CSV_PATH);
+    // A recognized format overlapping the library routes to the Update diff
+    // (not a plain import and not the AI "Review before importing" preview).
+    await page.getByText(/Update from Goodreads/).waitFor({ state: "visible", timeout: 30000 });
+    await page.getByText(/1 new/).first().waitFor({ state: "visible" });
+    await page.getByText(/1 changed/).first().waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /Apply update/ }).click();
+    // Toast reflects the create + the merge: "Imported 1 books from Goodreads, updated 1".
+    await page.getByText(/updated 1/).waitFor({ state: "visible", timeout: 30000 });
+  });
+
+  await step("updated-book-status-advanced", async () => {
+    await page.locator('button[aria-label="Close"]').first().click().catch(() => {});
+    await page.getByRole("button", { name: "Read", exact: true }).click(); // Recursion moved want-to-read -> read
+    await page.getByText("Recursion").first().waitFor({ state: "visible", timeout: 10000 });
+    await page.getByRole("button", { name: "All", exact: true }).click().catch(() => {});
   });
 
   // ---------- EXPORT ----------
