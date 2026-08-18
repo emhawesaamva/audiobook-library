@@ -334,6 +334,21 @@ for (const group of [books.filter((b) => b.parent_id == null), books.filter((b) 
 }
 
 console.log(`seeded ${profiles.length} profile(s) and ${books.length} books`);
+
+// Keep the seed files describing reality. GoTrue assigns the auth id, so a JSON
+// written by another tool (scripts/clone-prod-to-local.mjs) will not know it
+// until now; record it and regenerate the SQL twin so the CLI reset path lands
+// on the same rows this run just created.
+if (seed.user.id !== user.id) {
+  seed.user.id = user.id;
+  writeFileSync(SEED_PATH, JSON.stringify(seed, null, 2) + "\n");
+}
+writeFileSync(SQL_PATH, buildSeedSql(seed, {
+  profileCols: Object.keys(profiles[0] ?? {}),
+  bookCols: Object.keys(books[0] ?? {}),
+}));
+console.log(`regenerated ${SQL_PATH}`);
+
 // The one thing you need after a reset, and the easiest thing to miss scrolling
 // past migration output.
 printCredentials();

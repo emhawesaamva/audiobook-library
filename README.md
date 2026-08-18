@@ -60,8 +60,9 @@ in, so it is seeded with a test account and library, and the sign-in details are
 printed at the end.
 
 ```bash
-npm run db:capture    # record the current local library as the seed
-npm run db:seed       # re-apply it without a reset
+npm run db:capture     # record the current local library as the seed
+npm run db:seed        # re-apply it without a reset
+npm run db:clone-prod  # rebuild the seed from the hosted project
 ```
 
 `db:capture` writes two files, both gitignored because a capture is somebody's
@@ -76,10 +77,28 @@ real library and this repo is public:
 
 Arrange the books you want in the UI, run `db:capture`, and every later reset
 restores exactly that. With no seed files present both paths are no-ops, so a
-fresh clone still works. The script refuses to run against the production project
-or any non-loopback URL, and the generated SQL aborts if the database already
-holds accounts other than the seed one — which is what stops
-`supabase db reset --linked` from seeding over a real project.
+fresh clone still works.
+
+Because those files are gitignored, a fresh clone — or a machine that lost its
+local stack — has no seed to start from. `npm run db:clone-prod` is the way back:
+it reads a library out of the hosted project into `seed-data.json`, which
+`db:seed` then applies (regenerating `seed.sql` as it goes).
+
+```bash
+npm run db:clone-prod                # the sole account, or $OWNER_EMAIL
+npm run db:clone-prod -- a@b.com     # a specific account
+npm run db:seed
+```
+
+It reads the hosted credentials from `.env.hosted-backup` (the copy `db:use-local`
+sets aside; override with `PROD_ENV_FILE`) through a client that can only issue
+`GET`, so it cannot write to the hosted project, and it touches nothing but the
+JSON file.
+
+**Guards.** `seed-local.mjs` refuses to run against the production project or any
+non-loopback URL. The generated SQL aborts if the database already holds accounts
+other than the seed one — which is what stops `supabase db reset --linked`, which
+targets the *linked* (production) project, from seeding over real data.
 
 **Hosted project.** Run the files in `supabase/migrations/` in filename order
 against a fresh Supabase project (SQL editor, or the Supabase MCP), then in the
