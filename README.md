@@ -92,16 +92,17 @@ Tests run automatically in a pipeline ([GitHub Actions](.github/workflows/ci.yml
 | Trigger | Suite | Why |
 |---|---|---|
 | Push to `dev` / `master` | `npm test` (unit + import logic) | Fast feedback (~15s); these are pure functions, no network |
-| PR into `master` | `npm test` **and** `npm run test:e2e` (Playwright) | Full gate before anything can deploy |
+| PR into `master` | `npm test`, `npm run test:e2e`, **and** `npm run test:mobile` (Playwright) | Full gate before anything can deploy |
 
 **Two layers of testing.**
 
 - **Unit / integration** — call functions directly with hand-written inputs (mock data). No database or network, so they need no secrets and finish in seconds. This is most of the suite.
 - **End-to-end (E2E)** — launch the real app in a headless browser and click through every user flow (sign in, add a book, import a CSV, export, share…). It verifies the *real wiring*, so it talks to a live Supabase backend. It stubs only the paid external APIs (Claude + Audible) to stay fast, free, and deterministic.
+- **Mobile audit** — the same kind of Playwright run as E2E, but at phone viewport widths (390px and 320px), checking for horizontal overflow, wrapped/clipped labels, and undersized tap targets. Used to run nightly only, which meant a PR could merge with a mobile layout regression and nothing would say so until the next morning; it gates every PR now.
 
-**The gate.** Branch protection on `master` requires *both* suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
+**The gate.** Branch protection on `master` requires all three suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
 
-**The E2E database.** E2E runs against a **local Supabase stack in Docker**, started by the CI job itself — no hosted project, no repo secrets, no free-tier pausing. Each run gets a clean database from `supabase/migrations/`, so runs cannot contaminate each other.
+**The E2E/mobile database.** Both E2E and the mobile audit run against a **local Supabase stack in Docker**, started by the CI job itself — no hosted project, no repo secrets, no free-tier pausing. Each run gets a clean database from `supabase/migrations/`, so runs cannot contaminate each other.
 
 Run it locally the same way:
 
@@ -122,7 +123,7 @@ SUPABASE_SECRET_KEY=<test-secret> npm run test:e2e
 
 `ALLOW_PRODUCTION_WRITES=1` bypasses the guard; it exists for deliberate one-offs, not routine use. Add new production refs to `PRODUCTION_REFS` in `scripts/production-refs.js`.
 
-**Nightly.** [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml) runs `npm run test:integration` (RLS isolation, the signup trigger, admin self-promotion) and `npm run test:mobile` at 07:00 UTC, against the same local stack, and uploads the mobile screenshots as an artifact. Both are too slow for the per-PR gate but previously ran only when someone remembered — `test:mobile` is how a stray test account reached the production auth table. `workflow_dispatch` triggers a run on demand.
+**Nightly.** [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml) runs `npm run test:integration` (RLS isolation, the signup trigger, admin self-promotion) at 07:00 UTC, against the same local stack. Too slow for the per-PR gate, and previously ran only when someone remembered — which is how a stray test account once reached the production auth table. `workflow_dispatch` triggers a run on demand.
 
 The live-AI tests (`RUN_AI_TESTS=1` / `USE_REAL_AI=1`) remain manual, since they spend real API credit. See [`docs/TESTING.md`](docs/TESTING.md) for the full test surface.
 
