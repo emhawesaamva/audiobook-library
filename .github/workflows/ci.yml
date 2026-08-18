@@ -6,6 +6,11 @@ name: CI
 # therefore the Vercel auto-deploy of master — until the tests pass. Pushes to
 # dev get the same fast feedback while iterating; pushes to master re-run so the
 # branch tip always has a recorded status.
+#
+# Nightly still separately covers test:integration (RLS/auth/admin — not a UI
+# concern) on a schedule, but test:mobile gates every PR now: it used to run
+# nightly only, which meant a PR could merge with a mobile layout regression
+# and nothing would say so until the next morning at the earliest.
 on:
   push:
     branches: [dev, master]
@@ -66,6 +71,46 @@ jobs:
           npm run dev &
           npx wait-on -t 60000 http://localhost:5173
           npm run test:e2e
+      - name: Supabase logs on failure
+        if: failure()
+        run: npx supabase status || true
+
+  # Mobile-viewport layout audit (Playwright). Same local-Supabase setup as e2e,
+  # run as an independent job (not `needs: e2e`) so the two run in parallel and
+  # a slow/flaky one doesn't hold up the other.
+  mobile:
+    name: Mobile audit (Playwright)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # mobile-audit.mjs launches Chrome via channel:"chrome", as coverage does.
+      - run: npx playwright install --with-deps chrome
+      - name: Start local Supabase
+        run: npx supabase start
+      - name: Apply migrations
+        run: npx supabase db reset --no-seed
+      - name: Point .env at the local stack
+        run: npm run db:use-local
+      - name: Start dev server and run mobile audit
+        run: |
+          npm run dev &
+          npx wait-on -t 60000 http://localhost:5173
+          npm run test:mobile
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-audit-shots
+          path: scripts/ui-test/mobile-shots/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Supabase logs on failure
         if: failure()
         run: npx supabase status || true
