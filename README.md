@@ -15,6 +15,7 @@ Sign in with Google (or email/password), create one or more **libraries** (per p
 - **Up Next queue** — a small ordered strip of what you'll listen to next, separate from the full want list.
 - **Stats & goals** — listening hours, yearly book/hour goals with progress rings, top authors/narrators/genres, rating distribution, per-year review.
 - **AI recommendations** — describe a mood or ask for "more like X"; Claude answers grounded in your loved books and authors, with age-appropriate filtering per library (Adult / Teens / Children). The app also quietly keeps two fresh recommendations waiting in each library, and deleting one teaches it never to suggest that book again.
+- **Connect your own AI** — mint a token in Settings and point Claude (or any MCP client) at `https://audiolib.io/api/mcp`. It reads your taste and writes to your library, but does no thinking of its own: *your* model does the recommending, grounded in what you've loved.
 - **Import & export** — Goodreads CSV import (with optional metadata enrichment), CSV/JSON export.
 - **Multi-user** — accounts are isolated by Postgres row-level security. Each user gets their own libraries and settings.
 - **Admin** — the owner account sees an Admin tab: user list with usage, disable-signups switch.
@@ -29,6 +30,7 @@ Sign in with Google (or email/password), create one or more **libraries** (per p
 | AI | Claude API (Sonnet for recommendations, Haiku for identification) via serverless proxy |
 | Metadata | Audible catalog API (narrator/runtime/series/covers), Open Library + iTunes fallbacks via `api/metadata.js` |
 | Hosting | Vercel (static build + serverless functions in `api/`) |
+| MCP | `api/mcp.js` — connect Claude to a library ([design](docs/DESIGN-mcp-server.md)) |
 
 ## Local development
 
@@ -136,6 +138,36 @@ Where each one actually lives — worth checking here before hunting through
 | `ANTHROPIC_API_KEY` | yes | yes | |
 | `GEMINI_API_KEY` | placeholder locally | **yes** | fallback only fires on credit exhaustion |
 | `OWNER_EMAIL` | yes | no | local tooling only, one-time legacy migration |
+
+## Connect an AI assistant (MCP)
+
+Settings → **Connect an AI assistant** mints a personal access token, then:
+
+```bash
+claude mcp add --transport http audiolib https://audiolib.io/api/mcp \
+  --header "Authorization: Bearer alib_..."
+```
+
+Ask "what should I listen to next?" and the assistant pulls your taste profile,
+reasons over it itself, checks each pick against Audible's catalogue and your
+Libby library, and shows you links and waits. Say you placed a hold and it
+records one; say you want a book and it adds it. Nothing is written until you
+ask for it.
+
+**The server never calls an AI.** That is the point — your client already has a
+model, and paying twice for the same recommendation would be silly. It hands
+over the grounding (`get_taste_profile`) and the lookups (`search_catalog`,
+`check_availability`) and lets your model do the thinking. See
+[`docs/DESIGN-mcp-server.md`](docs/DESIGN-mcp-server.md).
+
+**A token is bound to one library.** Not to your account — to the library it was
+created under. It cannot see or touch your others, and you can revoke it from
+the same panel. The one exception is your Libby library code, which the schema
+keys on the account; the UI says so where you create the token.
+
+Tokens are generated in the browser and only their SHA-256 is stored, so the raw
+value is shown exactly once and cannot be recovered. Read-only tokens are
+available for an assistant you want to let look but not touch.
 
 ## Automated testing
 

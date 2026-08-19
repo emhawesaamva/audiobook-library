@@ -499,6 +499,32 @@ try {
     await page.waitForTimeout(300);
   });
 
+  // ---------- MCP access tokens ----------
+  await step("mcp-token-create-and-revoke", async () => {
+    await openSettings();
+    await page.getByPlaceholder(/What's it for/).fill("E2E token");
+    await page.getByRole("button", { name: /Create token/ }).click();
+    // The raw token is shown exactly once and never again — that is the whole
+    // point of storing only its hash, so assert on the value itself.
+    await page.getByText(/won't be shown again/i).waitFor({ state: "visible" });
+    const raw = await page.locator("code").first().textContent();
+    if (!/^alib_[A-Za-z0-9_-]{43}$/.test((raw || "").trim())) throw new Error(`bad token shape: ${raw}`);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    // Only the prefix survives in the list.
+    await page.getByText("E2E token").waitFor({ state: "visible" });
+    if (await page.getByText(raw.trim()).isVisible().catch(() => false)) {
+      throw new Error("the full token is still on screen after dismissing the reveal");
+    }
+    await page.getByRole("button", { name: "Revoke" }).first().click();
+    await page.getByRole("button", { name: "REVOKE", exact: true }).click();
+    await page.waitForTimeout(500);
+    if (await page.getByText("E2E token").isVisible().catch(() => false)) {
+      throw new Error("revoked token still listed");
+    }
+    await page.locator('button[aria-label="Close"]').first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  });
+
   // ---------- second library: create + switch ----------
   await step("create-second-library-and-switch", async () => {
     await page.getByRole("button", { name: "+ new" }).click();
