@@ -17,6 +17,7 @@
     "db:seed": "node scripts/seed-local.mjs",
     "db:capture": "node scripts/seed-local.mjs --capture",
     "db:clone-prod": "node scripts/clone-prod-to-local.mjs",
+    "deploy:quick": "node scripts/quick-deploy.mjs",
     "db:use-local": "node scripts/db-local.mjs",
     "backup": "node scripts/backup-legacy.js",
     "migrate": "node scripts/migrate-legacy.js",
