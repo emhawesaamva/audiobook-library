@@ -22,7 +22,7 @@ export function calcSeriesRating(book) {
 
 export const STATUS_LABEL = {
   read: "Read",
-  reading: "Listening",
+  reading: "Reading",
   wanttoread: "Want to Listen",
   recommended: "Recommended",
   dnf: "DNF",

@@ -17,7 +17,7 @@ const FEATURES = [
   {
     Icon: Library,
     title: "Track every listen",
-    body: "Statuses for Listening, Finished, Want to Listen, and DNF. Rate with half-stars, mark all-time favorites, and keep full series together automatically.",
+    body: "Statuses for Reading, Finished, Want to Listen, and DNF. Rate with half-stars, mark all-time favorites, and keep full series together automatically.",
   },
   {
     Icon: BookOpen,
