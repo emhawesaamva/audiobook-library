@@ -141,33 +141,111 @@ Where each one actually lives — worth checking here before hunting through
 
 ## Connect an AI assistant (MCP)
 
-Settings → **Connect an AI assistant** mints a personal access token, then:
+The app can hand your library to Claude — or any [MCP](https://modelcontextprotocol.io)
+client — so you can just ask "what should I listen to next?" and get answers
+grounded in what you've actually loved.
+
+Ten minutes, once. You need an audiolib.io account and the Claude desktop app
+(or claude.ai).
+
+### 1. Create a token in AudioLib
+
+Open **Settings** (the gear icon) and scroll to **Connect an AI assistant**.
+
+Type a name — "Claude" is fine, it's only a label so you can tell tokens apart
+later — and press **Create token**. You'll get something like:
+
+```
+alib_kzs6Jk62mRHukAZzkFd6ACQNvvPSkhYGFHoF-Pvu5uM
+```
+
+**Copy it now.** Only a hash of it is stored, so this is genuinely the one time
+it's shown; lose it and you just make another. Leave the tab open while you do
+the next step.
+
+Two options worth knowing before you click: **read-only** makes a token that can
+look but never change anything, and the expiry dropdown defaults to a year.
+
+### 2. Add it to Claude
+
+In Claude: **Settings → Connectors → Add ▾ → Add custom connector**.
+
+| Field | Value |
+|---|---|
+| Name | `audiolib.io` |
+| Remote MCP server URL | `https://audiolib.io/api/mcp` |
+
+Press **Continue**.
+
+### 3. Set the authentication (the one confusing bit)
+
+You'll land on a screen with three **Authentication** options, and Claude will
+have pre-selected **"Always required"** with a *Detected* badge next to it.
+
+**Change it to "None".** That is not as alarming as it sounds. "Always required"
+means OAuth — signing in through a login page — which this server doesn't use.
+It uses an API key instead, and "None" is the option that lets you supply one.
+Claude guesses OAuth because the server refuses unauthenticated requests, which
+is exactly what it should do; it just guesses the wrong *kind* of auth.
+
+An orange warning appears saying anyone with the URL could use the connector.
+That stops being true the moment you do the next bit.
+
+Under **Request headers**, add one:
+
+| Header | Value |
+|---|---|
+| `authorization` | `Bearer alib_kzs6Jk62...` |
+
+Include the word `Bearer` and a space before your token — the value is sent
+exactly as typed. Tick **Required**, then save.
+
+If it worked, the connector shows **Disconnect** and a **Tool permissions** list
+of 20 tools. That list is worth a look: you can set any tool to always allow,
+ask first, or never. If you'd rather nothing was ever written without your say-so,
+set **Add books**, **Update books** and **Delete book** to ask.
+
+### Using Claude Code instead
+
+One command, no clicking — the Settings panel gives you this line with the token
+already in it:
 
 ```bash
 claude mcp add --transport http audiolib https://audiolib.io/api/mcp \
   --header "Authorization: Bearer alib_..."
 ```
 
-Ask "what should I listen to next?" and the assistant pulls your taste profile,
-reasons over it itself, checks each pick against Audible's catalogue and your
-Libby library, and shows you links and waits. Say you placed a hold and it
-records one; say you want a book and it adds it. Nothing is written until you
-ask for it.
+### Try it
 
-**The server never calls an AI.** That is the point — your client already has a
-model, and paying twice for the same recommendation would be silly. It hands
-over the grounding (`get_taste_profile`) and the lookups (`search_catalog`,
+Ask **"what should I listen to next?"**
+
+Claude pulls your taste profile — loved books and authors, what you're listening
+to now, what you abandoned and why, and everything you already own — reasons over
+it, checks each pick really exists in Audible's catalogue, looks up whether your
+library lends it on Libby, and comes back with links and waits.
+
+If you've never set a Libby library code, it'll ask which library you borrow from
+and save it for you. Tell it you placed a hold and it records one, so the book
+turns up on your Holds tab counting down. Say you want a book and it gets added.
+
+**Nothing is written to your library until you ask for it.** Recommendations live
+in the conversation.
+
+### What's actually happening
+
+**The server never calls an AI.** Your client already has a model, and paying
+twice for the same recommendation would be silly. AudioLib hands over the
+grounding (`get_taste_profile`) and the lookups (`search_catalog`,
 `check_availability`) and lets your model do the thinking. See
 [`docs/DESIGN-mcp-server.md`](docs/DESIGN-mcp-server.md).
 
-**A token is bound to one library.** Not to your account — to the library it was
-created under. It cannot see or touch your others, and you can revoke it from
-the same panel. The one exception is your Libby library code, which the schema
-keys on the account; the UI says so where you create the token.
+**A token reaches one library, not your account.** It's bound to whichever library
+was selected in Settings when you made it — it cannot see or touch your others.
+If you keep separate libraries, make a token per library. Revoke any of them from
+the same panel and the connector loses access immediately.
 
-Tokens are generated in the browser and only their SHA-256 is stored, so the raw
-value is shown exactly once and cannot be recovered. Read-only tokens are
-available for an assistant you want to let look but not touch.
+The one exception: a token can change your Libby library code, which applies to
+your whole account. That's what lets Claude ask for it and save it mid-conversation.
 
 ## Automated testing
 
