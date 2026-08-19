@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
 import { searchBooks as metaSearch, resultToBook, libbyAvailability } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold } from "./lib/bookUtils.js";
+import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold, today, withAutoDates } from "./lib/bookUtils.js";
 import { booksNeedingLibbyCheck, toLibbyState } from "./lib/libbyStatus.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
@@ -21,25 +21,6 @@ import OnboardingWizard from "./components/OnboardingWizard.jsx";
 import ContactModal from "./components/ContactModal.jsx";
 import { Toast, Spinner, btnPrimary, btnSecondary, inputCls, selectCls, selectArrowStyle, labelCls } from "./components/shared.jsx";
 import { Headphones, Sun, Moon, Settings as SettingsIcon, HelpCircle, Plus, Grid3x3, LayoutGrid, List, LibraryBig, ALargeSmall, TrendingUp, Share2, Copy, Check, X, Sparkles } from "lucide-react";
-
-// Local calendar date, not UTC — toISOString() rolls over to tomorrow's date in
-// the evening for anyone west of Greenwich, which throws off every consumer
-// that treats the string as local midnight (holdWeeksLeft, date_started, etc).
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
-// Status transitions auto-set listening dates (still editable in the form).
-function withAutoDates(fields, prev) {
-  const out = { ...fields };
-  if (out.status === "reading" && !out.date_started) out.date_started = today();
-  if (out.status === "read" && !out.date_finished) {
-    out.date_finished = today();
-    if (!out.date_started && prev?.date_started) out.date_started = prev.date_started;
-  }
-  return out;
-}
 
 // Toolbar icon button whose label slides out on hover, widening the button
 // (neighbors shift naturally in the flex row) — replaces title tooltips.

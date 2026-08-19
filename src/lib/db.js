@@ -245,3 +245,56 @@ export async function listFeedback() {
   throwOn(error);
   return data;
 }
+
+// ---- MCP access tokens ----
+// Bound to one library each. The raw token is generated here, in the browser,
+// and only its sha256 is ever sent anywhere — this app has no backend, and a
+// mint endpoint would put the secret through a serverless function where it can
+// land in a request log. RLS supplies and validates account_id.
+
+function base64url(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function listMcpTokens(profileId) {
+  const { data, error } = await supabase
+    .from("mcp_tokens").select("*").eq("profile_id", profileId).order("created_at", { ascending: false });
+  throwOn(error);
+  return data;
+}
+
+// Returns { row, token }. `token` is the only time the raw value exists outside
+// the caller's memory — it is never stored and cannot be recovered.
+export async function createMcpToken(profileId, { name, expiresAt = null, canWrite = true }) {
+  const raw = `alib_${base64url(crypto.getRandomValues(new Uint8Array(32)))}`;
+  const { data, error } = await supabase
+    .from("mcp_tokens")
+    .insert({
+      profile_id: profileId,
+      name,
+      token_prefix: raw.slice(0, 13),
+      token_hash: await sha256Hex(raw),
+      can_write: canWrite,
+      expires_at: expiresAt,
+    })
+    .select()
+    .single();
+  throwOn(error);
+  return { row: data, token: raw };
+}
+
+export async function revokeMcpToken(id) {
+  const { error } = await supabase
+    .from("mcp_tokens").update({ revoked_at: new Date().toISOString() }).eq("id", id);
+  throwOn(error);
+}
+
+export async function deleteMcpToken(id) {
+  const { error } = await supabase.from("mcp_tokens").delete().eq("id", id);
+  throwOn(error);
+}

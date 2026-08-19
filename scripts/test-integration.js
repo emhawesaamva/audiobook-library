@@ -131,6 +131,134 @@ const us = await a.rest("user_settings", {
 });
 check("user_settings upsert", us.status === 201 || us.status === 200);
 
+// 11. mcp_tokens: RLS, column grants, and the single-library scoping property
+// This is the only test that exercises the MCP's service-role data path against
+// a real database, so it matters more than the unit suite: mcp-scope.js bypasses
+// RLS entirely, and these checks are what prove the code-level scoping holds.
+const { createHash, randomBytes } = await import("node:crypto");
+const mintToken = () => {
+  const raw = `alib_${randomBytes(32).toString("base64url")}`;
+  return { raw, hash: createHash("sha256").update(raw).digest("hex") };
+};
+
+// A second library under the same account — the case a per-library token must
+// not be able to cross.
+const p2 = await a.rest("profiles", {
+  method: "POST", headers: { Prefer: "return=representation" },
+  body: { account_id: a.userId, name: "Second Library" },
+});
+const profile2Id = p2.data?.[0]?.id;
+check("A can create a second library", !!profile2Id, `status ${p2.status}`);
+const b2 = await a.rest("books", {
+  method: "POST", headers: { Prefer: "return=representation" },
+  body: { profile_id: profile2Id, title: "Only In Library Two" },
+});
+const book2Id = b2.data?.[0]?.id;
+
+const tokenA = mintToken();
+const mint = await a.rest("mcp_tokens", {
+  method: "POST", headers: { Prefer: "return=representation" },
+  body: { account_id: a.userId, profile_id: profileId, name: "integration", token_prefix: tokenA.raw.slice(0, 13), token_hash: tokenA.hash },
+});
+check("A can mint a token for their own library", mint.status === 201, `status ${mint.status}`);
+const tokenRowId = mint.data?.[0]?.id;
+
+// The insert policy's WITH CHECK proves ownership of the bound library, so a
+// token cannot be pointed at somebody else's from the start.
+const bTokenForA = await b.rest("mcp_tokens", {
+  method: "POST",
+  body: { account_id: b.userId, profile_id: profileId, name: "steal", token_prefix: "alib_x", token_hash: "c".repeat(64) },
+});
+check("B cannot mint a token bound to A's library", bTokenForA.status >= 400, `status ${bTokenForA.status}`);
+const bTokenAsA = await b.rest("mcp_tokens", {
+  method: "POST",
+  body: { account_id: a.userId, profile_id: profileId, name: "steal", token_prefix: "alib_x", token_hash: "d".repeat(64) },
+});
+check("B cannot mint a token as A", bTokenAsA.status >= 400, `status ${bTokenAsA.status}`);
+
+const bSees = await b.rest("mcp_tokens?select=id");
+check("B cannot see A's tokens", (bSees.data ?? []).length === 0, `${bSees.data?.length ?? "?"} rows`);
+
+// profiles and books ARE anon-readable for share links; credentials are not.
+// Easy mistake to make given the default-privileges grant, so guard it loudly.
+const anonResp = await fetch(`${BASE}/rest/v1/mcp_tokens?select=id`, { headers: { apikey: ANON } });
+const anonRows = anonResp.ok ? await anonResp.json() : [];
+check("the anon key cannot read mcp_tokens at all", anonRows.length === 0,
+  anonRows.length ? "EXPOSED — check RLS on mcp_tokens" : "");
+
+// Column grants, not policy: nothing may repoint a live token or swap its hash.
+const rename = await a.rest(`mcp_tokens?id=eq.${tokenRowId}`, { method: "PATCH", body: { name: "renamed" } });
+check("A can rename their own token", rename.status === 204 || rename.status === 200, `status ${rename.status}`);
+const rebind = await a.rest(`mcp_tokens?id=eq.${tokenRowId}`, { method: "PATCH", body: { profile_id: profile2Id } });
+check("nobody can repoint a token at another library", rebind.status >= 400, `status ${rebind.status}`);
+const rehash = await a.rest(`mcp_tokens?id=eq.${tokenRowId}`, { method: "PATCH", body: { token_hash: "e".repeat(64) } });
+check("nobody can swap a token's hash", rehash.status >= 400, `status ${rehash.status}`);
+
+// ---- the service-role path: drive the real handler with the real token ----
+const { handleMcpRequest } = await import("../api/_lib/mcp-core.js");
+// Drive the handler over a real HTTP server rather than a stub req/res pair.
+// The SDK's Node transport wraps @hono/node-server, which converts a genuine
+// IncomingMessage/ServerResponse into a Web Standard Request — a hand-rolled
+// fake does not satisfy it and every call comes back 400 with an empty body.
+// Vercel and the Vite dev middleware both hand over real objects, so this
+// matches production; anything less tests the wrong thing.
+const { createServer } = await import("node:http");
+const mcpServer = createServer((req, res) =>
+  handleMcpRequest(req, res, { supabaseUrl: BASE, secretKey: process.env.SUPABASE_SECRET_KEY }));
+await new Promise((r) => mcpServer.listen(0, "127.0.0.1", r));
+const MCP_ORIGIN = `http://127.0.0.1:${mcpServer.address().port}`;
+
+const mcp = async (body, token) => {
+  const r = await fetch(MCP_ORIGIN, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  return { status: r.status, body: text ? JSON.parse(text) : null };
+};
+const tool = async (name, args, token = tokenA.raw) => {
+  const r = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args ?? {} } }, token);
+  const text = r.body?.result?.content?.[0]?.text;
+  return { status: r.status, isError: !!r.body?.result?.isError, payload: r.body?.result?.isError ? text : (text ? JSON.parse(text) : null) };
+};
+
+const listed = await tool("list_books", {});
+const titles = (listed.payload?.items ?? []).map((x) => x.title);
+check("the token reads its own library", titles.includes("Test Book"), titles.join(", ") || "no rows");
+check("the token cannot see the account's OTHER library", !titles.includes("Only In Library Two"));
+
+const crossRead = await tool("get_book", { book_id: book2Id });
+check("reading a book from another library fails", crossRead.isError && /No such book/.test(crossRead.payload), String(crossRead.payload));
+const crossWrite = await tool("update_books", { updates: [{ book_id: book2Id, patch: { rating: 1 } }] });
+check("writing a book in another library fails", crossWrite.isError && /No such book/.test(crossWrite.payload), String(crossWrite.payload));
+// And confirm nothing actually changed over there.
+const untouched = await a.rest(`books?id=eq.${book2Id}&select=rating`);
+check("the other library's book is untouched", untouched.data?.[0]?.rating == null);
+
+const revoked = await a.rest(`mcp_tokens?id=eq.${tokenRowId}`, { method: "PATCH", body: { revoked_at: new Date().toISOString() } });
+check("A can revoke their token", revoked.status === 204 || revoked.status === 200);
+const afterRevoke = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, tokenA.raw);
+check("a revoked token is refused", afterRevoke.status === 401, `status ${afterRevoke.status}`);
+
+// Deleting the bound library cascades its tokens away.
+const tokenB2 = mintToken();
+await a.rest("mcp_tokens", {
+  method: "POST",
+  body: { account_id: a.userId, profile_id: profile2Id, name: "cascade", token_prefix: tokenB2.raw.slice(0, 13), token_hash: tokenB2.hash },
+});
+await a.rest(`profiles?id=eq.${profile2Id}`, { method: "DELETE" });
+const orphan = await a.rest(`mcp_tokens?token_hash=eq.${tokenB2.hash}&select=id`);
+check("deleting a library destroys its tokens", (orphan.data ?? []).length === 0);
+const afterCascade = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, tokenB2.raw);
+check("a token whose library is gone is refused", afterCascade.status === 401, `status ${afterCascade.status}`);
+
+mcpServer.close();
+
 // ---- cleanup ----
 await deleteIfExists(TEST_A);
 await deleteIfExists(TEST_B);
