@@ -63,8 +63,50 @@ function svcHeaders(env) {
 
 // Resolve a bearer token to the library it is bound to, or fail closed.
 // Every failure returns the same shape; the caller renders one 401.
+// Pull the token out of an Authorization header a human filled in by hand.
+//
+// Be generous. The header is typed into a text box in someone's MCP client, and
+// every plausible variation should work rather than producing an opaque 401
+// they have no way to debug.
+//
+// The bug that prompted this: connecting with "Bearer <token>" failed while a
+// bare "<token>" worked, which is the opposite of what the client's own hint
+// tells you to do.
+//
+// The fault was ordering. The old code stripped the scheme with an anchored
+// /^Bearer\s+/i and only trimmed afterwards, so anything at all in front of
+// "Bearer" that the regex did not match — a stray space, a tab, a zero-width
+// character, or no space after the word — left the whole value intact to fail
+// the shape check. A bare token survived the same input because the trailing
+// .trim() rescued it. Which of those it was in the reported case is unknown;
+// the field was masked. Trim and normalise first, then strip, so the whole
+// class is covered rather than the one instance we guessed at.
+//
+// Handled: leading/trailing whitespace of any kind, Bearer/Token prefixes
+// (repeated, in case a client adds its own), surrounding quotes, and — as a
+// last resort — a well-formed token sitting anywhere in the value. That
+// fallback is safe because the token is 256 bits of CSPRNG output: finding one
+// embedded in a string does not happen by accident, and it still has to match a
+// stored hash to be worth anything.
+export function extractToken(authorization) {
+  let raw = String(authorization ?? "").trim();
+  raw = raw.replace(/^["']|["']$/g, "").trim();
+  // Repeat rather than a one-shot replace, so "Bearer Bearer <t>" resolves.
+  let previous;
+  do {
+    previous = raw;
+    raw = raw.replace(/^(?:Bearer|Token)\s+/i, "").trim();
+  } while (raw !== previous);
+  raw = raw.replace(/^["']|["']$/g, "").trim();
+  if (TOKEN_RE.test(raw)) return raw;
+  // Bounded on both sides, so a token with one character too many is NOT
+  // silently trimmed into a valid-looking one — that would hand a typo a
+  // database round trip and defeat the shape check that guards it.
+  return raw.match(/(?<![A-Za-z0-9_-])alib_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/)?.[0] ?? raw;
+}
+
 export async function resolveToken(env, authorization) {
-  const raw = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
+  const raw = extractToken(authorization);
   // Shape-check before touching the database, so a flood of garbage costs us
   // nothing. This is the DoS guard as much as it is validation.
   if (!TOKEN_RE.test(raw)) return { error: "Invalid or missing access token" };
