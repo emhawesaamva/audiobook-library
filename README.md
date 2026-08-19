@@ -122,6 +122,7 @@ covers them.
 | `npm run backup` | Dump the legacy `audiobook_library` table to `backups/` |
 | `npm run migrate` | One-time legacy → relational migration (`OWNER_EMAIL=... npm run migrate`) |
 | `npm run verify-migration` | Verify migrated counts/fields against the legacy data |
+| `npm run deploy:quick -- "msg"` | Push a minor change straight to master, skipping the PR gate (see below) |
 
 ## Environment variables
 
@@ -154,6 +155,14 @@ Tests run automatically in a pipeline ([GitHub Actions](.github/workflows/ci.yml
 - **Mobile audit** — the same kind of Playwright run as E2E, but at phone viewport widths (390px and 320px), checking for horizontal overflow, wrapped/clipped labels, and undersized tap targets. Used to run nightly only, which meant a PR could merge with a mobile layout regression and nothing would say so until the next morning; it gates every PR now.
 
 **The gate.** Branch protection on `master` requires all three suites to pass before a PR can merge. A red build blocks the merge, which blocks the Vercel deploy — that's what makes the tests a safety net rather than just a report.
+
+**The quick path, and what it costs.** `npm run deploy:quick -- "what changed"` commits the working tree to `master` and pushes, which Vercel deploys — no PR, no waiting on the gate. It is for copy tweaks, label changes, spacing: things where the seven-minute round trip costs more than it protects.
+
+It is not gate-free by accident. It still runs `npm test` and `npm run build` first, because together they take about two seconds and catch the syntax error that would white-screen the whole SPA. It refuses outright to ship changes under `supabase/`, `api/`, `.github/`, `package.json`, or `vercel.json` — those alter behaviour no fast check can see — and `--force` overrides both if you are certain. Afterwards it watches `audiolib.io` until the new bundle is actually serving, and prints the commit to roll back to.
+
+What it gives up is exactly the Playwright coverage: a rename that breaks a selector, a layout that overflows at 320px. Those suites still run on the push, so the failure lands in Actions a few minutes later — you find out after users could, rather than before. That happened on the "Listening" → "Reading" rename: the fast checks passed and E2E caught a stale selector. Use the gate when a change touches anything a person clicks; use this when it doesn't.
+
+To close this path entirely, turn on "Do not allow bypassing the above settings" in the `master` branch protection rule — the script relies on `enforce_admins` being off, and reports clearly when a push is rejected.
 
 **The E2E/mobile database.** Both E2E and the mobile audit run against a **local Supabase stack in Docker**, started by the CI job itself — no hosted project, no repo secrets, no free-tier pausing. Each run gets a clean database from `supabase/migrations/`, so runs cannot contaminate each other.
 
