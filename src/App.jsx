@@ -103,8 +103,8 @@ function LoadFailed({ message, onRetry }) {
 }
 
 const FILTERS = [
-  ["all", "All"], ["recommended", "Recommended"], ["loved", "Loved"],
-  ["read", "Read"], ["reading", "Listening"], ["want", "Want"], ["dnf", "DNF"],
+  ["all", "All"], ["reading", "Reading"], ["read", "Read"], ["loved", "Loved"],
+  ["recommended", "Recommended"], ["want", "Want"], ["dnf", "DNF"],
   ["crowd", "Crowd 4.5+"],
 ];
 
@@ -1065,7 +1065,7 @@ export default function App({ session, onSignOut }) {
                     recommended: "Recommended books appear here — the librarian adds fresh picks automatically, and the Recommend tab finds more on demand.",
                     loved: "Books you mark with a ❤ after finishing them appear here — your all-time favorites shelf.",
                     read: "Books you've finished appear here. Set a book's status to Read (and give it a rating) to build your history.",
-                    reading: "Whatever you're listening to right now appears here — set a book to Listening, or press play on your Up Next queue.",
+                    reading: "Whatever you're listening to right now appears here — set a book to Reading, or press play on your Up Next queue.",
                     want: "Your listening wishlist appears here — mark books as Want to Listen, or add picks from the Recommend tab.",
                     dnf: "Books you set aside without finishing appear here, along with how far you got and why.",
                     crowd: "No books in your library have crowd ratings of 4.5★ or higher yet. Books added via the search autofill include public ratings automatically — or run the metadata refresh script to backfill your existing library.",
