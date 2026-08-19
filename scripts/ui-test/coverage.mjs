@@ -330,7 +330,7 @@ try {
     await page.getByRole("button", { name: /^Edit/ }).click();
     await page.locator('select:has(option[value="wanttoread"])').first().selectOption("reading");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await page.getByRole("button", { name: "Listening", exact: true }).click(); // filter to listening
+    await page.getByRole("button", { name: "Reading", exact: true }).click(); // filter to in-progress
     await page.getByText("Dune").first().waitFor({ state: "visible" });
     await page.getByRole("button", { name: "All", exact: true }).click();
   });
