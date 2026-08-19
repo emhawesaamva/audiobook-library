@@ -131,6 +131,17 @@ export const selectArrowStyle = {
   backgroundSize: "1rem",
 };
 
+// Small amber toggle pill used by the "How to ..." disclosures in Settings and
+// the onboarding wizard. Amber in both states so it reads as an offer of help
+// rather than disabled chrome; the open state fills in.
+export function pillToggle(active) {
+  return `rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+    active
+      ? "border-accent-500 bg-accent-50 text-accent-700 dark:bg-accent-700/15 dark:text-accent-400"
+      : "border-accent-500/50 text-accent-700 hover:border-accent-500 hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-700/10"
+  }`;
+}
+
 export function Spinner({ className = "h-4 w-4" }) {
   return (
     <span className={`inline-block ${className} rounded-full border-2 border-current border-t-transparent`} style={{ animation: "spin 0.7s linear infinite" }} />
