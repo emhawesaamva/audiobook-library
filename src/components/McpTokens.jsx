@@ -10,8 +10,8 @@
 // — only its sha256 reaches the database.
 import { useState, useEffect } from "react";
 import { listMcpTokens, createMcpToken, revokeMcpToken } from "../lib/db.js";
-import { btnSecondary, btnDanger, inputCls, selectCls, selectArrowStyle, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
-import { Copy, Check, Plug, ChevronRight } from "lucide-react";
+import { btnSecondary, btnDanger, inputCls, selectCls, selectArrowStyle, labelCls, Spinner, ConfirmRow, pillToggle } from "./shared.jsx";
+import { Copy, Check, Plug } from "lucide-react";
 
 const MCP_URL = "https://audiolib.io/api/mcp";
 
@@ -110,13 +110,11 @@ export default function McpTokens({ profile, onToast }) {
         your Libby library code, which applies to your whole account.
       </p>
 
-      <button
-        onClick={() => setHowTo((v) => !v)}
-        className="mb-3 flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-600 dark:text-accent-400"
-      >
-        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${howTo ? "rotate-90" : ""}`} />
-        How do I connect Claude?
-      </button>
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        <button onClick={() => setHowTo((v) => !v)} className={pillToggle(howTo)}>
+          How do I connect Claude?
+        </button>
+      </div>
 
       {howTo && (
         <ol className="mb-4 space-y-2 rounded-lg border border-zinc-300/90 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">

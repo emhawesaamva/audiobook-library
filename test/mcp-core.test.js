@@ -520,12 +520,49 @@ test("a request without a valid token is refused before any tool can run", async
   assert.equal(calls.length, 0, "an unauthenticated request must not reach the database");
 });
 
+test("a 401 says how to authenticate, so a client does not have to guess the scheme", async () => {
+  // RFC 7235 requires this, and its absence had a visible cost: with no
+  // challenge to read, Claude's connector guessed OAuth ("Always required —
+  // Detected"), tried a discovery flow on the first Connect, failed, and only
+  // used the configured Authorization header on the retry. Pressing Connect
+  // twice was the symptom.
+  stubFetch(() => []);
+
+  // No credentials at all: a bare challenge, inviting one.
+  const bare = fakeRes();
+  await handleMcpRequest(fakeReq("POST", {}), bare, ENV);
+  assert.equal(bare.statusCode, 401);
+  assert.match(bare.getHeader("www-authenticate"), /^Bearer realm="audiolib\.io"$/);
+
+  // A token that arrived but is no good: say so, per RFC 6750.
+  const bad = fakeRes();
+  await handleMcpRequest(fakeReq("POST", { authorization: `Bearer alib_${"A".repeat(43)}` }), bad, ENV);
+  assert.equal(bad.statusCode, 401);
+  assert.match(bad.getHeader("www-authenticate"), /error="invalid_token"/);
+
+  // resource_metadata is what sends a client off to do OAuth discovery, and
+  // there is nothing to discover — its presence would reintroduce the bug.
+  assert.ok(!/resource_metadata/.test(bad.getHeader("www-authenticate")));
+});
+
+test("a CORS preflight is answered, not refused", async () => {
+  // A browser-context client preflights before it will send anything, and a
+  // bare 405 with no CORS headers reads as "host unreachable".
+  stubFetch(() => []);
+  const res = fakeRes();
+  await handleMcpRequest(fakeReq("OPTIONS", { origin: "https://claude.ai" }), res, ENV);
+  assert.equal(res.statusCode, 204);
+  assert.equal(res.getHeader("access-control-allow-origin"), "*");
+  assert.match(res.getHeader("access-control-allow-headers"), /Authorization/i);
+  assert.match(res.getHeader("access-control-allow-methods"), /POST/);
+});
+
 test("GET is refused — this endpoint speaks MCP over HTTP, not SSE", async () => {
   stubFetch(() => []);
   const res = fakeRes();
   await handleMcpRequest(fakeReq("GET", {}), res, ENV);
   assert.equal(res.statusCode, 405);
-  assert.equal(res.getHeader("allow"), "POST");
+  assert.equal(res.getHeader("allow"), "POST, OPTIONS");
 });
 
 test("an unconfigured deployment says so rather than half-working", async () => {
