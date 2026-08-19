@@ -246,7 +246,8 @@ export default function Settings({
 
       {/* ---- Libby ---- */}
       <div className={section}>
-        <div className={labelCls}>Libby library code <span className="normal-case font-normal">(applies to your whole account)</span></div>
+        <div className={labelCls}>Where you get your books <span className="normal-case font-normal">(applies to your whole account)</span></div>
+        <div className="mb-1 text-sm text-zinc-600 dark:text-zinc-300">Libby library code</div>
         <div className="flex gap-2">
           <input
             value={libby}
@@ -265,6 +266,19 @@ export default function Settings({
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           The slug from your library's Libby URL (libbyapp.com/library/<strong>code</strong>). With it set, every book's
           “Libby” action searches your library directly; without it, the universal OverDrive search is used.
+        </p>
+
+        <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={!!audibleSubscriber}
+            onChange={(e) => onAudibleSubscriberChange?.(e.target.checked)}
+            className="accent-accent-500"
+          />
+          I'm an Audible subscriber
+        </label>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Hides “grab it free on Audible” prompts across the site.
         </p>
       </div>
 
@@ -341,23 +355,6 @@ export default function Settings({
             </p>
           </>
         )}
-      </div>
-
-      {/* ---- Audible ---- */}
-      <div className={section}>
-        <div className={labelCls}>Audible</div>
-        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-          <input
-            type="checkbox"
-            checked={!!audibleSubscriber}
-            onChange={(e) => onAudibleSubscriberChange?.(e.target.checked)}
-            className="accent-accent-500"
-          />
-          I'm an Audible subscriber
-        </label>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Hides “grab it free on Audible” prompts across the site.
-        </p>
       </div>
 
       {/* ---- MCP access ---- */}
