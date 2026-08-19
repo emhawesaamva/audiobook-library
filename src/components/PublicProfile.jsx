@@ -58,7 +58,7 @@ function assembleBooks(rows) {
 const FILTERS = [
   ["all", "All"],
   ["read", "Read"],
-  ["reading", "Listening"],
+  ["reading", "Reading"],
   ["wanttoread", "Want to Listen"],
   ["crowd", "Crowd 4.5+"],
   ["loved", "Loved"],

@@ -93,7 +93,7 @@ function PasteDialog({ paste, setPaste, identifying, onIdentify, onConfirm }) {
             <select value={defaultStatus} onChange={(e) => setDefaultStatus(e.target.value)} className={`${selectCls} !w-auto !py-1.5`} style={selectArrowStyle}>
               <option value="wanttoread">Want to Listen</option>
               <option value="read">Read</option>
-              <option value="reading">Listening</option>
+              <option value="reading">Reading</option>
             </select>
           </div>
           <div className="flex gap-2">
