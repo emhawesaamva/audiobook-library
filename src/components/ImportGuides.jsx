@@ -1,6 +1,7 @@
 // "How to export from X" accordions, shared by Settings and the onboarding
 // wizard so the import instructions stay in one place.
 import { useState } from "react";
+import { pillToggle } from "./shared.jsx";
 
 const SOURCES = [
   { id: "audible", label: "Audible" },
@@ -22,11 +23,7 @@ export default function ImportGuides() {
           <button
             key={g.id}
             onClick={() => setOpen(open === g.id ? null : g.id)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-              open === g.id
-                ? "border-accent-500 bg-accent-50 text-accent-700 dark:bg-accent-700/15 dark:text-accent-400"
-                : "border-zinc-300 text-zinc-500 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
-            }`}
+            className={pillToggle(open === g.id)}
           >
             How to export from {g.label}
           </button>
