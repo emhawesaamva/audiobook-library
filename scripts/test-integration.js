@@ -196,25 +196,30 @@ check("nobody can swap a token's hash", rehash.status >= 400, `status ${rehash.s
 
 // ---- the service-role path: drive the real handler with the real token ----
 const { handleMcpRequest } = await import("../api/_lib/mcp-core.js");
+// Drive the handler over a real HTTP server rather than a stub req/res pair.
+// The SDK's Node transport wraps @hono/node-server, which converts a genuine
+// IncomingMessage/ServerResponse into a Web Standard Request — a hand-rolled
+// fake does not satisfy it and every call comes back 400 with an empty body.
+// Vercel and the Vite dev middleware both hand over real objects, so this
+// matches production; anything less tests the wrong thing.
+const { createServer } = await import("node:http");
+const mcpServer = createServer((req, res) =>
+  handleMcpRequest(req, res, { supabaseUrl: BASE, secretKey: process.env.SUPABASE_SECRET_KEY }));
+await new Promise((r) => mcpServer.listen(0, "127.0.0.1", r));
+const MCP_ORIGIN = `http://127.0.0.1:${mcpServer.address().port}`;
+
 const mcp = async (body, token) => {
-  let out = "";
-  const res = {
-    statusCode: 200, headers: {},
-    setHeader(k, v) { this.headers[k.toLowerCase()] = v; },
-    getHeader(k) { return this.headers[k.toLowerCase()]; },
-    writeHead(code) { this.statusCode = code; return this; },
-    write(c) { out += c; return true; },
-    end(c) { if (c) out += c; },
-    on() {},
-  };
-  const req = {
+  const r = await fetch(MCP_ORIGIN, {
     method: "POST",
-    headers: { authorization: token ? `Bearer ${token}` : "", "content-type": "application/json", accept: "application/json, text/event-stream" },
-    body,
-    on() {}, [Symbol.asyncIterator]: async function* () {},
-  };
-  await handleMcpRequest(req, res, { supabaseUrl: BASE, secretKey: process.env.SUPABASE_SECRET_KEY });
-  return { status: res.statusCode, body: out ? JSON.parse(out) : null };
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 const tool = async (name, args, token = tokenA.raw) => {
   const r = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args ?? {} } }, token);
@@ -251,6 +256,8 @@ const orphan = await a.rest(`mcp_tokens?token_hash=eq.${tokenB2.hash}&select=id`
 check("deleting a library destroys its tokens", (orphan.data ?? []).length === 0);
 const afterCascade = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, tokenB2.raw);
 check("a token whose library is gone is refused", afterCascade.status === 401, `status ${afterCascade.status}`);
+
+mcpServer.close();
 
 // ---- cleanup ----
 await deleteIfExists(TEST_A);
