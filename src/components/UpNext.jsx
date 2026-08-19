@@ -6,7 +6,7 @@
 // reflows the library below it when opened. Reorder with the arrows either way.
 import { useState, useEffect, useRef } from "react";
 import { Cover } from "./shared.jsx";
-import { ListMusic, ChevronUp, ChevronDown, Play, X, ChevronRight } from "lucide-react";
+import { ListMusic, ChevronUp, ChevronDown, Play, X } from "lucide-react";
 import { fmtDuration } from "../lib/bookUtils.js";
 
 export default function UpNext({ queue, onReorder, onRemove, onStart }) {
@@ -72,18 +72,24 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
       {/* ---- desktop: drawer pinned to the left edge ---- */}
       {/* The panel and its handle slide as one unit, so when closed the handle is
           all that protrudes. Fixed positioning keeps it out of the page flow —
-          opening the drawer never reflows the library behind it. */}
+          opening the drawer never reflows the library behind it.
+
+          The container stays panel-height even when only the handle shows, so
+          pointer-events-none keeps the empty strip above and below the handle
+          from opening the drawer — it used to, which made the hover target much
+          taller than the tab looked. The panel and handle opt back in; enter and
+          leave still fire up here, because they originate on those children. */}
       <div
         ref={ref}
         data-upnext-drawer=""
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`fixed left-0 top-1/2 z-40 hidden max-h-[88vh] -translate-y-1/2 items-center transition-transform duration-300 ease-out sm:flex ${
+        className={`pointer-events-none fixed left-0 top-1/2 z-40 hidden max-h-[88vh] -translate-y-1/2 items-center transition-transform duration-300 ease-out sm:flex ${
           open ? "translate-x-0" : "-translate-x-80"
         }`}
       >
         {/* panel */}
-        <div className="flex max-h-[88vh] min-h-[22rem] w-80 flex-col overflow-hidden rounded-r-xl border border-l-0 border-accent-500/40 bg-white shadow-xl dark:bg-zinc-900">
+        <div className="pointer-events-auto flex max-h-[88vh] min-h-[22rem] w-80 flex-col overflow-hidden rounded-r-xl border border-l-0 border-accent-500/40 bg-white shadow-xl dark:bg-zinc-900">
           <div className="flex items-center gap-2 bg-accent-500 px-3.5 py-2.5">
             <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-zinc-900">
               <ListMusic className="h-4 w-4" /> Up Next
@@ -101,14 +107,13 @@ export default function UpNext({ queue, onReorder, onRemove, onStart }) {
           onClick={() => setPinned((p) => !p)}
           aria-expanded={open}
           aria-label={`Up Next, ${queue.length} queued`}
-          className="flex cursor-pointer items-center gap-1 rounded-r-lg bg-accent-500 py-6 pl-1.5 pr-2 shadow-lg transition-colors hover:bg-accent-400"
+          className="pointer-events-auto flex cursor-pointer items-center rounded-r-lg bg-accent-500 px-1 py-6 shadow-lg transition-colors hover:bg-accent-400"
         >
-          <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900 [writing-mode:vertical-rl]">
+          <span className="flex items-center gap-2 text-sm font-bold uppercase leading-none tracking-wider text-zinc-900 [writing-mode:vertical-rl]">
             <ListMusic className="h-4 w-4 rotate-90" />
             Up Next
             <span className="font-semibold text-zinc-900/70">{queue.length}</span>
           </span>
-          <ChevronRight className={`h-4 w-4 shrink-0 text-zinc-900 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
 
