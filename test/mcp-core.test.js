@@ -16,7 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeScope, assertUuid, McpScopeError, pgMessage } from "../api/_lib/mcp-scope.js";
 import { TOOLS, TOOLS_BY_NAME, PROMPTS, SERVER_INSTRUCTIONS, buildTasteProfile, renderTasteBlock } from "../api/_lib/mcp-tools.js";
-import { hashToken, resolveToken, handleMcpRequest } from "../api/_lib/mcp-core.js";
+import { hashToken, resolveToken, handleMcpRequest, extractToken } from "../api/_lib/mcp-core.js";
 
 const ENV = { supabaseUrl: "https://example.supabase.co", secretKey: "service-key" };
 const MINE = "11111111-1111-4111-8111-111111111111";
@@ -66,6 +66,47 @@ test("a malformed token is rejected without ever touching the database", async (
     assert.ok(r.error, `expected rejection for ${JSON.stringify(header)}`);
   }
   assert.equal(calls.length, 0);
+});
+
+test("the Authorization header is parsed generously, however a person filled the box in", () => {
+  // Reported from a real setup: connecting with "Bearer <token>" failed while a
+  // bare "<token>" worked — the opposite of what the client's own hint says.
+  //
+  // The fault was ordering. The old parser did .replace(/^Bearer\s+/i, "")
+  // and THEN .trim(), so anything in front of "Bearer" that the anchored regex
+  // did not match left the whole value intact to fail the shape check, while a
+  // bare token was rescued by that same trailing .trim(). The exact character
+  // in the reported case is unknown — the field was masked — so these cases
+  // cover the class rather than one guess at the instance.
+  const t = `alib_${"A".repeat(43)}`;
+  for (const [input, label] of [
+    [t, "bare token"],
+    [`Bearer ${t}`, "the documented form"],
+    [`bearer ${t}`, "lowercase scheme"],
+    [` Bearer ${t}`, "leading space before the scheme — the reported bug"],
+    [`\u00a0Bearer ${t}`, "non-breaking space, as pasted from a web page"],
+    [`\tBearer ${t}`, "leading tab"],
+    [`\nBearer ${t}\n`, "wrapped in newlines"],
+    [`Bearer Bearer ${t}`, "scheme added twice, in case a client does that"],
+    [`Token ${t}`, "the other common scheme"],
+    [`  ${t}  `, "padded"],
+    [`"Bearer ${t}"`, "quoted"],
+    [`Authorization: Bearer ${t}`, "whole header line pasted in"],
+  ]) {
+    assert.equal(extractToken(input), t, label);
+  }
+});
+
+test("generous parsing does not make garbage look like a token", () => {
+  assert.equal(extractToken(""), "");
+  assert.equal(extractToken(undefined), "");
+  assert.equal(extractToken("Bearer nonsense"), "nonsense");
+  // Neither too short nor too long may be salvaged into something valid — a
+  // near-miss must still be rejected before it costs a database round trip.
+  const valid = /^alib_[A-Za-z0-9_-]{43}$/;
+  assert.ok(!valid.test(extractToken(`Bearer alib_${"A".repeat(10)}`)), "too short");
+  assert.ok(!valid.test(extractToken(`Bearer alib_${"A".repeat(44)}`)), "one character too long");
+  assert.ok(!valid.test(extractToken(`Bearer xalib_${"A".repeat(43)}`)), "prefixed with junk");
 });
 
 test("an unknown, revoked or expired token is rejected", async () => {
