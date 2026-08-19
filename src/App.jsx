@@ -86,6 +86,22 @@ function CreateFirstLibrary({ onCreate }) {
   );
 }
 
+// Shown when the initial load fails — deliberately distinct from the
+// empty-library onboarding, which claims the account has nothing in it.
+function LoadFailed({ message, onRetry }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center p-6">
+      <div className="w-full max-w-sm rounded-xl border border-zinc-300/90 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-lg font-semibold">Couldn't load your libraries</h2>
+        <p className="mb-4 mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Your books are safe — this visit just couldn't reach them. {message}
+        </p>
+        <button onClick={onRetry} className={`${btnPrimary} w-full`}>Try again</button>
+      </div>
+    </div>
+  );
+}
+
 const FILTERS = [
   ["all", "All"], ["recommended", "Recommended"], ["loved", "Loved"],
   ["read", "Read"], ["reading", "Listening"], ["want", "Want"], ["dnf", "DNF"],
@@ -161,6 +177,8 @@ export default function App({ session, onSignOut }) {
   const [account, setAccount] = useState(null);
   const [appSettings, setAppSettings] = useState({});
   const [profiles, setProfiles] = useState(null); // null = loading
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [activeId, setActiveId] = useState(null);
   const [books, setBooks] = useState([]);
   const [booksReady, setBooksReady] = useState(false);
@@ -234,6 +252,7 @@ export default function App({ session, onSignOut }) {
   // ---- initial load ----
   useEffect(() => {
     (async () => {
+      setLoadError(null);
       try {
         const [acct, profs, settings, app] = await Promise.all([
           db.getAccount(uid),
@@ -255,12 +274,14 @@ export default function App({ session, onSignOut }) {
           profs.find((p) => p.id === settings.default_profile_id) ?? profs[0] ?? null;
         if (first) selectProfile(first.id, profs);
       } catch (e) {
-        setBanner({ text: `Load failed: ${e.message}`, isError: true });
-        setProfiles([]);
+        // Leave `profiles` null and show the failure. Setting it to [] here
+        // used to drop the user on "Create your first library", which reads as
+        // an emptied account rather than a load that didn't come back.
+        setLoadError(e.message);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid]);
+  }, [uid, reloadKey]);
 
   const refreshBooks = useCallback(async (profileId = activeIdRef.current) => {
     if (!profileId) return [];
@@ -780,6 +801,10 @@ export default function App({ session, onSignOut }) {
       {label}
     </button>
   );
+
+  if (loadError) {
+    return <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />;
+  }
 
   if (profiles === null) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">Loading…</div>;
