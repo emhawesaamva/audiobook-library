@@ -188,3 +188,41 @@ export function cleanBookFields(fields) {
   if (out.rating != null && !(Number(out.rating) > 0)) out.rating = null;
   return out;
 }
+
+// ---- listening dates ----
+// Local calendar date, not UTC — toISOString() rolls over to tomorrow's date in
+// the evening for anyone west of Greenwich, which throws off every consumer
+// that treats the string as local midnight (holdWeeksLeft, date_started, etc).
+// Server-side callers with no meaningful local zone (api/_lib/mcp-tools.js)
+// pass the client's date in explicitly rather than inheriting the host's UTC.
+export function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Status transitions auto-set listening dates (still editable in the form).
+export function withAutoDates(fields, prev, now = today()) {
+  const out = { ...fields };
+  if (out.status === "reading" && !out.date_started) out.date_started = now;
+  if (out.status === "read" && !out.date_finished) {
+    out.date_finished = now;
+    if (!out.date_started && prev?.date_started) out.date_started = prev.date_started;
+  }
+  return out;
+}
+
+// ---- recommendation audience guardrail ----
+// Shared by the in-app recommender (src/lib/ai.js, where it goes into a
+// server-controlled system prompt) and the MCP server (api/_lib/mcp-tools.js,
+// where it is handed to the connecting model as an instruction it is asked to
+// honour). One definition, because the two must not drift.
+export const ADULT_AUDIENCE_GUIDANCE =
+  "IMPORTANT: Recommend adult fiction audiobooks only. Interpret all queries in the context of adult literature — never recommend children's books, picture books, or middle-grade fiction unless explicitly requested.";
+
+export function audienceInstruction(ageGroup) {
+  if (ageGroup === "children")
+    return "AUDIENCE: This library belongs to a child. Only recommend age-appropriate audiobooks for children. Exclude all teen, adult, or mature content — no violence, horror, romance, or adult themes of any kind.";
+  if (ageGroup === "teens")
+    return "AUDIENCE: This library belongs to a teenager. Only recommend Young Adult (YA) audiobooks. Age-appropriate fantasy, sci-fi, adventure, and coming-of-age are welcome. Exclude explicit sexual content, extreme gore, and adult-only themes.";
+  return null;
+}

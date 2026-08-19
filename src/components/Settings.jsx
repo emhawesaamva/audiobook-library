@@ -9,6 +9,7 @@ import ImportGuides from "./ImportGuides.jsx";
 import ImportConfirm from "./ImportConfirm.jsx";
 import UpdateConfirm from "./UpdateConfirm.jsx";
 import PasteImport from "./PasteImport.jsx";
+import McpTokens from "./McpTokens.jsx";
 import { Upload, Download, RefreshCw } from "lucide-react";
 import { searchBooks, resultToBook } from "../lib/metadata.js";
 import { updateBook } from "../lib/db.js";
@@ -357,6 +358,11 @@ export default function Settings({
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Hides “grab it free on Audible” prompts across the site.
         </p>
+      </div>
+
+      {/* ---- MCP access ---- */}
+      <div className={section}>
+        <McpTokens profile={profile} onToast={onToast} />
       </div>
 
       {/* ---- danger zone ---- */}

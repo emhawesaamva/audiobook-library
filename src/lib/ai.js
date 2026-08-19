@@ -1,7 +1,7 @@
 // Claude integration: book recommendations and quick book identification.
 // Requests go to /v1/messages, proxied server-side so the API key never
 // reaches the browser (Vite dev proxy locally, Vercel function in prod).
-import { getStatus } from "./bookUtils.js";
+import { getStatus, audienceInstruction, ADULT_AUDIENCE_GUIDANCE } from "./bookUtils.js";
 import { MAPPABLE_FIELDS, VALID_STATUSES } from "./csv.js";
 
 export async function claudeFetch(body, extraHeaders = {}) {
@@ -29,14 +29,6 @@ export function extractJSON(txt) {
   return null;
 }
 
-function audienceInstruction(ageGroup) {
-  if (ageGroup === "children")
-    return "AUDIENCE: This library belongs to a child. Only recommend age-appropriate audiobooks for children. Exclude all teen, adult, or mature content — no violence, horror, romance, or adult themes of any kind.";
-  if (ageGroup === "teens")
-    return "AUDIENCE: This library belongs to a teenager. Only recommend Young Adult (YA) audiobooks. Age-appropriate fantasy, sci-fi, adventure, and coming-of-age are welcome. Exclude explicit sexual content, extreme gore, and adult-only themes.";
-  return null;
-}
-
 // Shared recommendation engine used by the manual search UI and the
 // auto-recommend background job. Returns { recommendations: [...], note }.
 export async function fetchRecommendations({ books, profileName, ageGroup, query, model, maxTokens = 4000 }) {
@@ -49,7 +41,7 @@ export async function fetchRecommendations({ books, profileName, ageGroup, query
 
   const sys = `You are an audiobook recommendation engine for ${profileName}. They listen exclusively on Audible.
 
-${audience ?? "IMPORTANT: Recommend adult fiction audiobooks only. Interpret all queries in the context of adult literature — never recommend children's books, picture books, or middle-grade fiction unless explicitly requested."}
+${audience ?? ADULT_AUDIENCE_GUIDANCE}
 
 LOVED BOOKS: ${loved || "not yet established"}
 LOVED AUTHORS: ${lovedAuthors.join(", ") || "not yet established"}
