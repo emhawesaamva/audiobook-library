@@ -11,7 +11,7 @@
 import { useState, useEffect } from "react";
 import { listMcpTokens, createMcpToken, revokeMcpToken } from "../lib/db.js";
 import { btnSecondary, btnDanger, inputCls, selectCls, selectArrowStyle, labelCls, Spinner, ConfirmRow } from "./shared.jsx";
-import { Copy, Check, Plug } from "lucide-react";
+import { Copy, Check, Plug, ChevronRight } from "lucide-react";
 
 const MCP_URL = "https://audiolib.io/api/mcp";
 
@@ -57,6 +57,7 @@ export default function McpTokens({ profile, onToast }) {
   const [creating, setCreating] = useState(false);
   const [fresh, setFresh] = useState(null); // { token, row } — shown once
   const [confirming, setConfirming] = useState(null);
+  const [howTo, setHowTo] = useState(false);
 
   const load = async () => {
     try { setTokens(await listMcpTokens(profile.id)); }
@@ -100,13 +101,50 @@ export default function McpTokens({ profile, onToast }) {
   return (
     <div>
       <div className={labelCls}>Connect an AI assistant</div>
-      <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
         Create a token to let Claude (or any MCP client) read and update{" "}
         <strong>{profile.name}</strong> — adding books, tracking what you've finished, and
-        recommending from your own taste. A token reaches <strong>only this library</strong>,
+        recommending from your own taste. Ask it “what should I listen to next?” and it
+        answers from what you've actually loved. A token reaches <strong>only this library</strong>,
         never your others, and you can revoke it any time. The one exception: it can change
         your Libby library code, which applies to your whole account.
       </p>
+
+      <button
+        onClick={() => setHowTo((v) => !v)}
+        className="mb-3 flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-600 dark:text-accent-400"
+      >
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${howTo ? "rotate-90" : ""}`} />
+        How do I connect Claude?
+      </button>
+
+      {howTo && (
+        <ol className="mb-4 space-y-2 rounded-lg border border-zinc-300/90 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+          <li>
+            <strong className="text-zinc-700 dark:text-zinc-300">1. Make a token below.</strong>{" "}
+            Give it a name, press Create, and copy it. It's only shown once.
+          </li>
+          <li>
+            <strong className="text-zinc-700 dark:text-zinc-300">2. In Claude,</strong> open
+            Settings → Connectors → <em>Add</em> → <em>Add custom connector</em>. Name it
+            anything; the server URL is <code className="font-mono">{MCP_URL}</code>.
+          </li>
+          <li>
+            <strong className="text-zinc-700 dark:text-zinc-300">3. Set Authentication to “None”.</strong>{" "}
+            Claude pre-selects “Always required”, which means signing in through a login page —
+            this uses a token instead, and “None” is the option that lets you paste one.
+          </li>
+          <li>
+            <strong className="text-zinc-700 dark:text-zinc-300">4. Add a request header</strong>{" "}
+            named <code className="font-mono">authorization</code> with your token as the value.
+            Save, and Claude should list 20 tools.
+          </li>
+          <li className="pt-1 text-zinc-500 dark:text-zinc-500">
+            Using Claude Code instead? Paste the one-line command shown with your new token —
+            no clicking required.
+          </li>
+        </ol>
+      )}
 
       {fresh ? (
         <div className="mb-4 rounded-lg border border-accent-500/60 bg-accent-50 p-3 dark:bg-accent-700/10">
