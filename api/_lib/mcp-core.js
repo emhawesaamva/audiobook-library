@@ -23,7 +23,22 @@ import {
 import { makeScope, McpScopeError, pgMessage } from "./mcp-scope.js";
 import { TOOLS, TOOLS_BY_NAME, PROMPTS, SERVER_INSTRUCTIONS } from "./mcp-tools.js";
 
-const SERVER_INFO = { name: "audiolib", version: "1.0.0" };
+// title, websiteUrl and icons are what a client shows in its connector list.
+// Without icons it falls back to fetching a favicon from the origin, and
+// without that to a generic placeholder — hence the real files in public/
+// rather than the inline data: URI index.html used to carry.
+export const SERVER_INFO = {
+  name: "audiolib",
+  title: "AudioLib",
+  version: "1.0.0",
+  websiteUrl: "https://audiolib.io",
+  description: "One audiobook library: what you have listened to, loved, abandoned, and want next.",
+  icons: [
+    { src: "https://audiolib.io/favicon.svg", mimeType: "image/svg+xml" },
+    { src: "https://audiolib.io/apple-touch-icon.png", mimeType: "image/png", sizes: ["180x180"] },
+    { src: "https://audiolib.io/icon-512.png", mimeType: "image/png", sizes: ["512x512"] },
+  ],
+};
 
 // alib_ + 43 base64url chars = 32 random bytes.
 const TOKEN_RE = /^alib_[A-Za-z0-9_-]{43}$/;
