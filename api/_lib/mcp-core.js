@@ -213,10 +213,43 @@ function audit(scope, tool, okFlag, started) {
   }));
 }
 
+// Browser-context MCP clients preflight before they will send a request, and a
+// bare 405 with no CORS headers reads to them as "host unreachable" rather than
+// "method not allowed". Bearer credentials are attached explicitly by the
+// client, never sent ambiently like a cookie, so a wildcard origin grants
+// nothing on its own.
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version");
+  res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id, WWW-Authenticate");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
+// RFC 7235 requires a 401 to say HOW to authenticate, and this endpoint said
+// nothing at all. That is not just pedantry: an MCP client with no challenge to
+// read has to guess the scheme, and Claude's connector guessed OAuth — it
+// showed "Always required (Detected)", attempted a discovery flow on the first
+// Connect, failed, and only used the configured Authorization header on the
+// retry. Hence having to press Connect twice.
+//
+// A plain Bearer challenge with NO resource_metadata parameter is the signal
+// for "send me a token"; resource_metadata is what would send a client off to
+// do OAuth discovery instead, and there is nothing there to discover.
+function setAuthChallenge(res, { invalid } = {}) {
+  res.setHeader(
+    "WWW-Authenticate",
+    invalid
+      ? 'Bearer realm="audiolib.io", error="invalid_token", error_description="The access token is invalid, revoked, or expired. Create a new one in Settings."'
+      : 'Bearer realm="audiolib.io"'
+  );
+}
+
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store");
+  setCors(res);
   res.end(JSON.stringify(body));
 }
 
@@ -224,10 +257,15 @@ export async function handleMcpRequest(req, res, { supabaseUrl, secretKey } = {}
   if (!supabaseUrl || !secretKey) {
     return sendJson(res, 500, { error: "MCP server is not configured" });
   }
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    setCors(res);
+    return res.end();
+  }
   // No SSE: a serverless function cannot hold a stream open reliably, and the
   // transport runs stateless (one Server per request, no session store).
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", "POST, OPTIONS");
     return sendJson(res, 405, { error: "Use POST — this endpoint speaks MCP over HTTP, not SSE" });
   }
 
@@ -235,8 +273,14 @@ export async function handleMcpRequest(req, res, { supabaseUrl, secretKey } = {}
   // Authenticate before parsing a body, reading anything, or touching an
   // upstream. /api/metadata and /v1/messages next door are unauthenticated;
   // this one must not be.
-  const auth = await resolveToken(env, req.headers?.authorization ?? req.headers?.Authorization);
-  if (auth.error) return sendJson(res, auth.rateLimited ? 429 : 401, { error: auth.error });
+  const header = req.headers?.authorization ?? req.headers?.Authorization;
+  const auth = await resolveToken(env, header);
+  if (auth.error) {
+    if (auth.rateLimited) return sendJson(res, 429, { error: auth.error });
+    // "Present a token" when none arrived; "that token is no good" when one did.
+    setAuthChallenge(res, { invalid: !!extractToken(header) });
+    return sendJson(res, 401, { error: auth.error });
+  }
 
   let body;
   try {
