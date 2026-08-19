@@ -152,11 +152,14 @@ export function Toast({ toast }) {
 }
 
 // ---- inline confirm ----
-export function ConfirmRow({ message, onConfirm, onCancel }) {
+// confirmLabel defaults to DELETE because that is what every existing caller is
+// confirming; pass it when the action is something else (revoking a token, say)
+// so the button names the thing it actually does.
+export function ConfirmRow({ message, onConfirm, onCancel, confirmLabel = "DELETE" }) {
   return (
     <div className="flex items-center gap-2 text-sm">
       <span className="flex-1 text-red-600 dark:text-red-400">{message}</span>
-      <button onClick={onConfirm} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-red-700 cursor-pointer">DELETE</button>
+      <button onClick={onConfirm} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-red-700 cursor-pointer">{confirmLabel}</button>
       <button onClick={onCancel} className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium dark:border-zinc-700 cursor-pointer">Cancel</button>
     </div>
   );

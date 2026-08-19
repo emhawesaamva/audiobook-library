@@ -27,6 +27,15 @@ function devApi(env) {
           secretKey: env.SUPABASE_SECRET_KEY,
         });
       });
+      // MCP endpoint. Same handler Vercel runs; needs the service key, which is
+      // why it reads from env here rather than the publishable key the SPA uses.
+      server.middlewares.use("/api/mcp", async (req, res) => {
+        const { handleMcpRequest } = await server.ssrLoadModule("/api/_lib/mcp-core.js");
+        await handleMcpRequest(req, res, {
+          supabaseUrl: env.SUPABASE_URL || env.VITE_SUPABASE_URL,
+          secretKey: env.SUPABASE_SECRET_KEY,
+        });
+      });
       // Same Anthropic proxy + Gemini fallback the Vercel function runs in prod.
       server.middlewares.use("/v1/messages", async (req, res) => {
         const { handleMessages } = await server.ssrLoadModule("/api/_lib/messages-core.js");
