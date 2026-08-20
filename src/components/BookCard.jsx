@@ -2,9 +2,9 @@
 // All three share the same action menu (edit / delete / queue / links).
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Stars, StatusChip, Cover } from "./shared.jsx";
-import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Library, Plus, BookCheck } from "lucide-react";
+import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Library, Plus, BookCheck, Clock } from "lucide-react";
 import {
-  getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
+  getStatus, calcSeriesRating, fmtDuration, hasHold, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
 import { libbyBadge } from "../lib/libbyStatus.js";
 
@@ -66,6 +66,16 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
       <Library className="h-3.5 w-3.5" /> Libby
       {wait && <span className="sm:hidden text-zinc-500 dark:text-zinc-400"> · {wait}</span>}
     </a>
+  );
+
+  // Recording a hold as its own action, not only as the question that follows the
+  // Libby link. A hold is often placed on the phone, or days before you get back
+  // here, and the pill showing a wait is exactly the moment you decide to join
+  // the queue — so the menu that pill sits above has to offer it directly.
+  const holdAction = holdable && (
+    <button className={item} onClick={() => { onClose(); onLibbyHold(book, null, { chosen: true }); }}>
+      <Clock className="h-3.5 w-3.5" /> {hasHold(book) ? "Edit hold" : "Put on hold"}
+    </button>
   );
 
   return (
@@ -130,6 +140,7 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
             )}
             <a className={item} href={audibleSearchUrl(book, affiliateTag)} target="_blank" rel="noopener noreferrer" onClick={onClose}><Headphones className="h-3.5 w-3.5" /> Audible</a>
             {libbyLink}
+            {holdAction}
             <a className={item} href={goodreadsSearchUrl(book)} target="_blank" rel="noopener noreferrer" onClick={onClose}><BookOpen className="h-3.5 w-3.5" /> Goodreads</a>
             <button className={`${item} text-red-600 dark:text-red-400`} onClick={() => setConfirming(true)}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
           </>
