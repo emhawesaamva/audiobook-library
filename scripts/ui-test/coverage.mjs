@@ -394,6 +394,50 @@ try {
     await page.getByRole("button", { name: "Library", exact: true }).click();
   });
 
+  await step("borrowed-clears-the-hold-starts-it-and-jumps-the-queue", async () => {
+    // The moment a hold resolves. One button doing three things, so all three
+    // get checked: the hold is gone, the book is being listened to now, and it
+    // is at the FRONT of Up Next rather than appended to the back.
+    //
+    // Places its own hold first — the earlier hold steps deliberately end with
+    // the tab empty, and reusing their hold would couple the two sequences.
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await page.getByPlaceholder(/Search title/).fill("Piranesi");
+    await page.waitForTimeout(500);
+    await page.getByText("Piranesi").first().click();
+    await page.getByRole("link", { name: "Libby" }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "visible" });
+    await page.locator("#hold-weeks").fill("3");
+    await page.getByRole("button", { name: /Yes, save hold/ }).click();
+    await page.getByText("Did you put this book on hold?").waitFor({ state: "hidden" });
+    await page.getByPlaceholder(/Search title/).fill("");
+    await page.waitForTimeout(400);
+
+    await page.getByRole("button", { name: "Libby Holds" }).click();
+    await page.getByRole("button", { name: /^Borrowed$/ }).first().waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^Borrowed$/ }).first().click();
+    await page.waitForTimeout(1000);
+
+    // Gone from Holds — the hold was cleared, not merely hidden.
+    if (await page.getByRole("button", { name: /^Borrowed$/ }).first().isVisible().catch(() => false)) {
+      throw new Error("still on the Holds tab after Borrowed");
+    }
+
+    // Status moved to listening-now, and it leads the Up Next queue.
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await page.getByPlaceholder(/Search title/).fill("Piranesi");
+    await page.waitForTimeout(600);
+    await page.getByText("NOW", { exact: true }).first().waitFor({ state: "visible" });
+    await page.getByPlaceholder(/Search title/).fill("");
+    await page.waitForTimeout(400);
+
+    const first = await page.evaluate(() => {
+      const strip = document.querySelector('[data-up-next]') ?? document.body;
+      return /Piranesi/.test(strip.textContent ?? "") ? "in queue" : "not in queue";
+    });
+    if (first !== "in queue") throw new Error("borrowed book is not in Up Next");
+  });
+
   await step("stats-goals", async () => {
     await page.getByRole("button", { name: "Stats", exact: true }).click();
     await page.getByPlaceholder("e.g. 24").first().waitFor({ state: "visible" });

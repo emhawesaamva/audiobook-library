@@ -309,6 +309,18 @@ test("the handshake carries an identity a client can render", async () => {
   }
 });
 
+test("the instructions carry a one-time introduction for the listener", () => {
+  // instructions is the only string a client reads once per session, which is
+  // what makes it the right home for something that must be said once and never
+  // repeated. A stateless HTTP server cannot itself tell a first call from a
+  // hundredth, so this is delegated with an explicit "once, then never again".
+  assert.match(SERVER_INSTRUCTIONS, /FIRST USE IN A CONVERSATION/);
+  assert.match(SERVER_INSTRUCTIONS, /ONCE per conversation and never repeat it/);
+  assert.match(SERVER_INSTRUCTIONS, /Work with your audiobook library directly in this chat/);
+  assert.match(SERVER_INSTRUCTIONS, /I know your taste/);
+  assert.match(SERVER_INSTRUCTIONS, /I update your shelf as we talk/);
+});
+
 test("the server instructions tell a client to reason for itself and not to store recommendations", () => {
   assert.match(SERVER_INSTRUCTIONS, /no AI inference/i);
   assert.match(SERVER_INSTRUCTIONS, /get_taste_profile FIRST/);
@@ -387,6 +399,54 @@ test("set_hold clears both hold columns together, and promotes a suggestion to a
   await TOOLS_BY_NAME.get("set_hold").handler(scope, { book_id: BOOK, weeks: 6, hold_date: "2026-08-01" });
   assert.equal(patched.hold_weeks, 6);
   assert.equal(patched.status, "wanttoread");
+});
+
+test("mark_borrowed clears the hold, starts the book, and puts it first in the queue", async () => {
+  // The three things a hold coming through implies, which otherwise have to be
+  // done by hand in three different places.
+  const held = book({ id: BOOK, status: "wanttoread", hold_weeks: 6, hold_date: "2026-08-01", queue_position: 4 });
+  const otherA = book({ id: "cccccccc-1111-4111-8111-111111111111", title: "A", queue_position: 1 });
+  const otherB = book({ id: "dddddddd-1111-4111-8111-111111111111", title: "B", queue_position: 2 });
+  const patches = [];
+  stubFetch((url, init) => {
+    if (init?.method === "PATCH") {
+      patches.push({ url, body: JSON.parse(init.body) });
+      return [held];
+    }
+    if (url.includes("queue_position=not.is.null")) return [otherA, otherB, held];
+    return [held];
+  });
+
+  await TOOLS_BY_NAME.get("mark_borrowed").handler(scopeFor(), { book_id: BOOK, today: "2026-08-20" });
+
+  const own = patches.find((p) => p.url.includes(`id=eq.${BOOK}`)).body;
+  assert.equal(own.hold_weeks, null, "hold weeks cleared");
+  assert.equal(own.hold_date, null, "hold date cleared — both move together");
+  assert.equal(own.status, "reading");
+  assert.equal(own.date_started, "2026-08-20", "started today, in the listener's own timezone");
+  assert.equal(own.queue_position, 1, "first in Up Next");
+
+  // Everything else shifts down, and the borrowed book is not renumbered twice.
+  const others = patches.filter((p) => !p.url.includes(`id=eq.${BOOK}`));
+  assert.deepEqual(others.map((p) => p.body.queue_position), [2, 3]);
+});
+
+test("mark_borrowed keeps an existing start date rather than resetting it", async () => {
+  // Someone who already began a book and then borrowed a copy should not have
+  // their start date rewritten to today — that would corrupt the listening
+  // history the stats are built from.
+  const started = book({ id: BOOK, status: "reading", date_started: "2026-07-01", hold_weeks: 4, hold_date: "2026-08-01" });
+  let own = null;
+  stubFetch((url, init) => {
+    if (init?.method === "PATCH") {
+      if (url.includes(`id=eq.${BOOK}`)) own = JSON.parse(init.body);
+      return [started];
+    }
+    if (url.includes("queue_position=not.is.null")) return [];
+    return [started];
+  });
+  await TOOLS_BY_NAME.get("mark_borrowed").handler(scopeFor(), { book_id: BOOK, today: "2026-08-20" });
+  assert.equal(own.date_started, "2026-07-01");
 });
 
 test("log_reread bumps the counter the app actually reads, and only files a dated entry when given dates", async () => {
