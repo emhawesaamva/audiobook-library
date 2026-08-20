@@ -1402,8 +1402,12 @@ function McpPromoCard({ view, onOpen, onDismiss }) {
       <div className={`relative flex aspect-[1/1.5] flex-col items-center justify-center rounded-lg border p-3 text-center ${accent}`}>
         <div className="absolute right-1 top-1">{dismiss}</div>
         <Sparkles className="mb-2 h-5 w-5 text-accent-600" />
-        <p className="text-[11px] font-medium leading-snug">
-          Ask your own AI what to listen to next — it answers from your library
+        {/* Same words as the card view — a promo that rewrites itself per view
+            reads as three different features rather than one. */}
+        <p className="text-[11px] leading-snug">
+          <strong className="font-semibold">Use your library with Claude.</strong>{" "}
+          Connect your own AI assistant and ask it what to listen to next — it answers from the
+          books you've actually loved, and can add them for you.
         </p>
         <span className="mt-1.5 text-[11px]">{link}</span>
       </div>
