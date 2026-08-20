@@ -401,9 +401,10 @@ test("set_hold clears both hold columns together, and promotes a suggestion to a
   assert.equal(patched.status, "wanttoread");
 });
 
-test("mark_borrowed clears the hold, starts the book, and puts it first in the queue", async () => {
+test("mark_borrowed clears the hold, starts the book, and takes it out of the queue", async () => {
   // The three things a hold coming through implies, which otherwise have to be
-  // done by hand in three different places.
+  // done by hand in three different places. Up Next is what you have yet to get
+  // to, so a book in hand leaves it — the same exit pressing play gives you.
   const held = book({ id: BOOK, status: "wanttoread", hold_weeks: 6, hold_date: "2026-08-01", queue_position: 4 });
   const otherA = book({ id: "cccccccc-1111-4111-8111-111111111111", title: "A", queue_position: 1 });
   const otherB = book({ id: "dddddddd-1111-4111-8111-111111111111", title: "B", queue_position: 2 });
@@ -424,11 +425,11 @@ test("mark_borrowed clears the hold, starts the book, and puts it first in the q
   assert.equal(own.hold_date, null, "hold date cleared — both move together");
   assert.equal(own.status, "reading");
   assert.equal(own.date_started, "2026-08-20", "started today, in the listener's own timezone");
-  assert.equal(own.queue_position, 1, "first in Up Next");
+  assert.equal(own.queue_position, null, "out of Up Next");
 
-  // Everything else shifts down, and the borrowed book is not renumbered twice.
+  // Nobody else is touched: the rest of the queue keeps the order it had.
   const others = patches.filter((p) => !p.url.includes(`id=eq.${BOOK}`));
-  assert.deepEqual(others.map((p) => p.body.queue_position), [2, 3]);
+  assert.deepEqual(others, [], "the rest of the queue is left alone");
 });
 
 test("mark_borrowed keeps an existing start date rather than resetting it", async () => {

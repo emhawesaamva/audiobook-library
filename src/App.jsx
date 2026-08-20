@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
 import { searchBooks as metaSearch, resultToBook, libbyAvailability } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold, today, withAutoDates } from "./lib/bookUtils.js";
+import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold, today, withStatusEffects } from "./lib/bookUtils.js";
 import { booksNeedingLibbyCheck, toLibbyState } from "./lib/libbyStatus.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
@@ -411,15 +411,15 @@ export default function App({ session, onSignOut }) {
     let created = null;
     if (fields.id) {
       const prev = books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).find((b) => b.id === fields.id);
-      await db.updateBook(fields.id, withAutoDates(fields, prev));
+      await db.updateBook(fields.id, withStatusEffects(fields, prev));
     } else if (targetSeriesId) {
       const series = books.find((b) => b.id === targetSeriesId);
       created = await db.createBook({
-        ...withAutoDates(fields), profile_id: activeId, parent_id: targetSeriesId,
+        ...withStatusEffects(fields), profile_id: activeId, parent_id: targetSeriesId,
         series_position: (series?.books?.length ?? 0) + 1,
       });
     } else {
-      created = await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
+      created = await db.createBook({ ...withStatusEffects(fields), profile_id: activeId });
     }
     await refreshBooks();
     if (isNew && !fields.is_series) maybePromoteAudible(fields);
@@ -518,6 +518,16 @@ export default function App({ session, onSignOut }) {
     return all.filter((b) => b.queue_position != null).sort((a, b) => a.queue_position - b.queue_position);
   }, [books]);
 
+  // The drawer shows what's being listened to now above what's queued. A book can
+  // be both — set a queued book to Reading in the edit form and it keeps its slot
+  // — so Now Reading claims it and the Up Next list drops it rather than listing
+  // the same book twice.
+  const nowReading = useMemo(
+    () => flattenBooks(books).filter((b) => b.status === "reading"),
+    [books]
+  );
+  const upNext = useMemo(() => queue.filter((b) => b.status !== "reading"), [queue]);
+
   // Crowd-favorite nudge when the queue is empty: best publicly rated
   // Want-to-Listen book.
   const crowdPick = useMemo(() => {
@@ -540,29 +550,25 @@ export default function App({ session, onSignOut }) {
   });
 
   // "Borrowed": the hold came through and the book is in hand. One action rather
-  // than three, because this is the moment a hold actually resolves and doing it
-  // by hand means clearing the hold, changing the status, and reordering the
-  // queue in three separate places.
+  // than two, because this is the moment a hold actually resolves and doing it by
+  // hand means clearing the hold and changing the status separately.
   //
-  // Note this deliberately leaves the book in Up Next while marking it as being
-  // listened to, unlike startListening() which clears queue_position — a
-  // borrowed book has a due date, so it belongs at the top of what's next.
+  // It drops the book's queue slot, exactly like startListening(). A borrowed book
+  // has a due date, so it wants to be the next thing you reach for — and the
+  // drawer now says so by listing it in Now Reading, above the queue rather than
+  // inside it. Keeping a slot on top of that bought nothing visible and outlived
+  // the book: nothing clears queue_position when a book is finished, so a slot
+  // taken here would put a read book back at the head of Up Next.
   const markBorrowed = guard(async (book) => {
-    const others = queue.filter((b) => b.id !== book.id);
     await db.updateBook(book.id, {
       hold_weeks: null,
       hold_date: null,
       status: "reading",
       date_started: book.date_started || today(),
-      queue_position: 1,
+      queue_position: null,
     });
-    // Renumber from 2 so the borrowed book owns the front of the queue. Small N,
-    // and setQueuePositions writes them sequentially.
-    if (others.length) {
-      await db.setQueuePositions(others.map((b, i) => ({ id: b.id, queue_position: i + 2 })));
-    }
     await refreshBooks();
-    setToast({ text: `Borrowed "${book.title}" — it's first in Up Next` });
+    setToast({ text: `Borrowed "${book.title}" — it's in Now Reading` });
   });
 
   // ---- library holds ----
@@ -1001,8 +1007,8 @@ export default function App({ session, onSignOut }) {
 
         {tab === "library" && (
           <>
-            <UpNext queue={queue} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
-            {queue.length === 0 && crowdPick && (
+            <UpNext queue={upNext} reading={nowReading} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
+            {upNext.length === 0 && crowdPick && (
               <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-accent-200/70 bg-accent-50/50 px-3 py-2.5 text-sm dark:border-accent-700/30 dark:bg-accent-700/5">
                 <span className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 shrink-0 text-accent-600" />
@@ -1229,9 +1235,12 @@ export default function App({ session, onSignOut }) {
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
           onDeleteSeries={() => removeSeries(activeSeries)}
           onSaveSub={async (id, fields) => {
-            if (id) await db.updateBook(id, withAutoDates(fields));
+            // The previous row matters to withStatusEffects: it carries the start
+            // date onto a volume being finished, and tells a status that actually
+            // moved from one that was merely re-saved.
+            if (id) await db.updateBook(id, withStatusEffects(fields, activeSeries.books?.find((b) => b.id === id)));
             else await db.createBook({
-              ...withAutoDates(fields), profile_id: activeId, parent_id: activeSeries.id,
+              ...withStatusEffects(fields), profile_id: activeId, parent_id: activeSeries.id,
               series_position: (activeSeries.books?.length ?? 0) + 1,
             });
             await refreshBooks();
