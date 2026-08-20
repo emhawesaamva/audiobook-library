@@ -415,6 +415,48 @@ try {
     await page.getByRole("button", { name: /More recommendations/ }).waitFor({ state: "visible", timeout: 40000 });
   });
 
+  await step("ai-errors-are-friendly-and-only-offer-retry-when-it-helps", async () => {
+    // Temporarily override the AI stub with real provider failures. The point is
+    // that a user never sees vendor text, and is only invited to retry when
+    // retrying could actually work.
+    const q = page.getByPlaceholder(/looking for|What are you/i).first();
+    const ask = () => page.getByRole("button", { name: /Find|Get recommendation/i }).first().click();
+
+    // 1. A transient overload — Gemini's real wording.
+    await page.route("**/v1/messages", (r) => r.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ type: "error", error: { type: "overloaded_error",
+        message: "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later." } }),
+    }));
+    await q.fill("something bleak");
+    await ask();
+    const busy = page.getByText(/service is busy|Try again in a minute/i).first();
+    await busy.waitFor({ state: "visible", timeout: 20000 });
+    const shown = (await page.locator("body").innerText()).toLowerCase();
+    for (const leak of ["gemini", "anthropic", "quota", "googleapis", "http"]) {
+      if (shown.includes(leak)) throw new Error(`error text leaked "${leak}" to the user`);
+    }
+    await page.getByRole("button", { name: "Try again", exact: true }).waitFor({ state: "visible" });
+
+    // 2. A bad key — nothing the user can do, so no retry button.
+    await page.route("**/v1/messages", (r) => r.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ type: "error", error: { type: "authentication_error",
+        message: "API key not valid. Please pass a valid API key." } }),
+    }));
+    await q.fill("something warm");
+    await ask();
+    await page.getByText(/something on our end|Retrying won't help/i).first().waitFor({ state: "visible", timeout: 20000 });
+    if (await page.getByRole("button", { name: "Try again", exact: true }).isVisible().catch(() => false)) {
+      throw new Error("offered Try again for an error that retrying cannot fix");
+    }
+
+    // Restore the normal stub for the rest of the run.
+    await page.route("**/v1/messages", (r) => r.fulfill(stubClaude(r.request().postData())));
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await page.waitForTimeout(400);
+  });
+
   // ---------- IMPORT (Settings) ----------
   await step("open-settings", async () => {
     await page.getByRole("button", { name: "Library", exact: true }).click();
