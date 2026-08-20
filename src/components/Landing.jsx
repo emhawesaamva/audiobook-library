@@ -4,11 +4,16 @@
 import { useState } from "react";
 import {
   Headphones, Sparkles, Library, BarChart3, Share2, Users,
-  BookOpen, ArrowRight, Moon, Sun,
+  BookOpen, ArrowRight, Moon, Sun, Plug, MessageSquare, Wand2,
 } from "lucide-react";
 import { btnPrimary, btnSecondary, Stars, StatusChip, Cover } from "./shared.jsx";
 
 const FEATURES = [
+  {
+    Icon: Plug,
+    title: "Connect your own AI",
+    body: "Point Claude — or any MCP client — at your library and just ask. It reads what you've loved, checks Audible and Libby before it suggests anything, and updates your shelf as you talk. Your assistant, your subscription, your data.",
+  },
   {
     Icon: Sparkles,
     title: "AI recommendations that get you",
@@ -182,6 +187,11 @@ export default function Landing({ onSignIn }) {
                 favorites, and get personal recommendations from an AI librarian that knows your taste —
                 then listen your way: borrow it free from your library with Libby, or buy it on Audible.
               </p>
+              <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-300">
+                Or skip the app entirely and{" "}
+                <strong className="font-semibold text-zinc-800 dark:text-zinc-100">connect Claude straight to your shelf</strong>{" "}
+                — then just ask what to listen to next.
+              </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <button className={btnPrimary} onClick={onSignIn}>
                   Get started — it's free <ArrowRight className="h-4 w-4" />
@@ -243,6 +253,61 @@ export default function Landing({ onSignIn }) {
                 Jump to any title on Audible in one click — new members can grab their first audiobook
                 free with a trial. Your whole shelf is there waiting, right alongside Audible's own picks.
               </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ---- bring your own AI (MCP) ---- */}
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
+          <div className="rounded-2xl border border-accent-300/70 bg-gradient-to-br from-accent-50 to-white p-8 dark:border-accent-700/40 dark:from-accent-700/10 dark:to-zinc-950 sm:p-12">
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent-700 dark:text-accent-400">
+              <Plug className="h-4 w-4" /> Bring your own AI
+            </div>
+            <h2 className="mt-3 max-w-3xl text-3xl font-bold sm:text-4xl">
+              Hand your whole library to Claude — and just ask.
+            </h2>
+            <p className="mt-4 max-w-3xl text-zinc-600 dark:text-zinc-300">
+              Most apps bolt a chatbot onto the side. AudioLib does the opposite: it opens your shelf
+              to the AI you already use. Connect it once and Claude — or any assistant that speaks{" "}
+              <a href="https://modelcontextprotocol.io" target="_blank" rel="noreferrer" className="font-medium text-accent-700 underline-offset-2 hover:underline dark:text-accent-400">MCP</a>{" "}
+              — can read your taste and act on it. No copying titles back and forth. No starting over
+              every conversation.
+            </p>
+
+            <div className="mt-8 grid gap-5 md:grid-cols-3">
+              <div className="rounded-xl border border-zinc-300/90 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <MessageSquare className="h-5 w-5 text-accent-600" />
+                <h3 className="mt-3 font-semibold">It knows what you loved</h3>
+                <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  Ask “what should I listen to next?” and the answer comes from your actual shelf —
+                  the authors you rate five stars, the narrators you come back to, the one you gave up
+                  on at 30% and why. Not a generic bestseller list.
+                </p>
+              </div>
+              <div className="rounded-xl border border-zinc-300/90 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <Library className="h-5 w-5 text-accent-600" />
+                <h3 className="mt-3 font-semibold">It checks before it recommends</h3>
+                <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  Every pick gets verified against the real Audible catalogue, then checked against
+                  your library on Libby — so you get the narrator, the runtime, the wait time, and a
+                  link to borrow it. Say you placed a hold and it starts the countdown for you.
+                </p>
+              </div>
+              <div className="rounded-xl border border-zinc-300/90 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <Wand2 className="h-5 w-5 text-accent-600" />
+                <h3 className="mt-3 font-semibold">It keeps your shelf up to date</h3>
+                <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  “I finished Project Hail Mary, five stars.” “Add the rest of that series.” “What
+                  haven't I rated?” Your library updates as you talk, and everything shows up here.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-xl border border-zinc-300/90 bg-white/70 p-5 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+              <strong className="font-semibold text-zinc-800 dark:text-zinc-100">Your AI, your subscription, your data.</strong>{" "}
+              AudioLib doesn't run the model or charge you for it — the assistant you already pay for
+              does the thinking, and we just hand it the shelf. Connecting takes one token from
+              Settings, it reaches one library and nothing else, and you can revoke it in a click.
             </div>
           </div>
         </section>
