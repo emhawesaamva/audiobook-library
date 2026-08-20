@@ -4,7 +4,7 @@
 // library code configured, each pick also shows live library availability.
 import { useState, useEffect } from "react";
 import { Dialog, Spinner, Stars, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
-import { fetchRecommendations } from "../lib/ai.js";
+import { fetchRecommendations, friendlyAiError } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
 import { flattenBooks, libbySearchUrl, sameTitle, audibleSearchUrl } from "../lib/bookUtils.js";
 import { BookOpen, Plus } from "lucide-react";
@@ -124,7 +124,8 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
       result.recommendations = result.recommendations.filter((r) => !inLibrary(r.title));
       setRes(result);
     } catch (e) {
-      setRes({ error: true, msg: e.message });
+      const friendly = friendlyAiError(e.message);
+      setRes({ error: true, msg: friendly.text, retryable: friendly.retryable });
     }
     setLoading(false);
   };
@@ -144,7 +145,7 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
       setRes((p) => ({ ...p, recommendations: [...p.recommendations, ...fresh] }));
       if (!fresh.length) onToast?.({ text: "No new suggestions this round — try refining the search" });
     } catch (e) {
-      onToast?.({ text: e.message, isError: true });
+      onToast?.({ text: friendlyAiError(e.message).text, isError: true });
     }
     setLoadingMore(false);
   };
@@ -194,7 +195,17 @@ export default function Recommend({ books, profileName, ageGroup, model, libbyKe
       </div>
 
       {res?.error && (
-        <p className="text-sm text-red-600 dark:text-red-400">Something went wrong{res.msg ? `: ${res.msg}` : "."}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-red-600 dark:text-red-400">{res.msg}</p>
+          {/* Only where retrying can actually help. The one non-retryable case
+              is a bad or missing key, and inviting someone to try again against
+              that produces the identical failure forever. */}
+          {res.retryable && (
+            <button onClick={go} disabled={loading} className={`${btnSecondary} !py-1 text-xs`}>
+              Try again
+            </button>
+          )}
+        </div>
       )}
       {res?.headline && <p className="text-base font-bold">{res.headline}</p>}
       {res?.note && <p className="text-sm italic text-zinc-600 dark:text-zinc-400">{res.note}</p>}
