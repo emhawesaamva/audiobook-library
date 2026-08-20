@@ -294,6 +294,21 @@ test("the surface excludes admin, import, export, goals and rejection tooling", 
   }
 });
 
+test("the handshake carries an identity a client can render", async () => {
+  // Without these a connector shows a generic placeholder. icons is the
+  // protocol-level answer; the real files in public/ are the fallback for
+  // clients that fetch a favicon from the origin instead.
+  stubFetch(() => []);
+  const info = (await import("../api/_lib/mcp-core.js")).SERVER_INFO;
+  assert.equal(info.name, "audiolib");
+  assert.ok(info.title && info.version && info.websiteUrl);
+  assert.ok(info.icons?.length, "no icons declared");
+  for (const icon of info.icons) {
+    assert.match(icon.src, /^https:\/\/audiolib\.io\//, "icons must be absolute — a client fetches them from elsewhere");
+    assert.ok(icon.mimeType, `${icon.src} has no mimeType`);
+  }
+});
+
 test("the server instructions tell a client to reason for itself and not to store recommendations", () => {
   assert.match(SERVER_INSTRUCTIONS, /no AI inference/i);
   assert.match(SERVER_INSTRUCTIONS, /get_taste_profile FIRST/);

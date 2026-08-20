@@ -507,7 +507,10 @@ try {
     // The raw token is shown exactly once and never again — that is the whole
     // point of storing only its hash, so assert on the value itself.
     await page.getByText(/won't be shown again/i).waitFor({ state: "visible" });
-    const raw = await page.locator("code").first().textContent();
+    // Match the token by its own shape, not by page order — the panel's intro
+    // also renders the endpoint URL in a <code>, and "the first one" silently
+    // became the wrong element when that copy was added.
+    const raw = await page.locator("code").filter({ hasText: /^alib_/ }).first().textContent();
     if (!/^alib_[A-Za-z0-9_-]{43}$/.test((raw || "").trim())) throw new Error(`bad token shape: ${raw}`);
     await page.getByRole("button", { name: "Done", exact: true }).click();
     // Only the prefix survives in the list.

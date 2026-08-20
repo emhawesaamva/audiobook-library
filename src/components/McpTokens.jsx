@@ -102,12 +102,11 @@ export default function McpTokens({ profile, onToast }) {
     <div>
       <div className={labelCls}>Connect an AI assistant</div>
       <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Create a token to let Claude (or any MCP client) read and update{" "}
-        <strong>{profile.name}</strong> — adding books, tracking what you've finished, and
-        recommending from your own taste. Ask it “what should I listen to next?” and it
-        answers from what you've actually loved. A token reaches <strong>only this library</strong>,
-        never your others, and you can revoke it any time. The one exception: it can change
-        your Libby library code, which applies to your whole account.
+        Use <code className="font-mono">{MCP_URL}</code> and create a token to let Claude or
+        another AI or LLM work with your own library. Track books and get recommendations from
+        your own taste. Ask it “what should I listen to next?” and it answers from what you've
+        actually loved. A token reaches <strong>only this library</strong>, never your others,
+        and you can revoke it any time.
       </p>
 
       <div className="mb-2 flex flex-wrap gap-1.5">
@@ -125,7 +124,9 @@ export default function McpTokens({ profile, onToast }) {
           <li>
             <strong className="text-zinc-700 dark:text-zinc-300">2. In Claude,</strong> open
             Settings → Connectors → <em>Add</em> → <em>Add custom connector</em>. Name it
-            anything; the server URL is <code className="font-mono">{MCP_URL}</code>.
+            {/* No full stop after the URL — it sits flush against the address and
+                gets selected along with it when someone copies by hand. */}
+            anything; the server URL is <code className="font-mono">{MCP_URL}</code>
           </li>
           <li>
             <strong className="text-zinc-700 dark:text-zinc-300">3. Set Authentication to “None”.</strong>{" "}
@@ -224,9 +225,6 @@ export default function McpTokens({ profile, onToast }) {
         </div>
       )}
 
-      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Endpoint: <code className="font-mono">{MCP_URL}</code>
-      </p>
     </div>
   );
 }
