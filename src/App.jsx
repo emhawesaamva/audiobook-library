@@ -539,6 +539,32 @@ export default function App({ session, onSignOut }) {
     setToast({ text: queued ? "Removed from Up Next" : "Added to Up Next" });
   });
 
+  // "Borrowed": the hold came through and the book is in hand. One action rather
+  // than three, because this is the moment a hold actually resolves and doing it
+  // by hand means clearing the hold, changing the status, and reordering the
+  // queue in three separate places.
+  //
+  // Note this deliberately leaves the book in Up Next while marking it as being
+  // listened to, unlike startListening() which clears queue_position — a
+  // borrowed book has a due date, so it belongs at the top of what's next.
+  const markBorrowed = guard(async (book) => {
+    const others = queue.filter((b) => b.id !== book.id);
+    await db.updateBook(book.id, {
+      hold_weeks: null,
+      hold_date: null,
+      status: "reading",
+      date_started: book.date_started || today(),
+      queue_position: 1,
+    });
+    // Renumber from 2 so the borrowed book owns the front of the queue. Small N,
+    // and setQueuePositions writes them sequentially.
+    if (others.length) {
+      await db.setQueuePositions(others.map((b, i) => ({ id: b.id, queue_position: i + 2 })));
+    }
+    await refreshBooks();
+    setToast({ text: `Borrowed "${book.title}" — it's first in Up Next` });
+  });
+
   // ---- library holds ----
   // A hold is an indicator, not a status. The one status side effect: a book
   // you went and placed a hold on is plainly no longer just "recommended".
@@ -756,6 +782,7 @@ export default function App({ session, onSignOut }) {
     onOpen: b.is_series ? () => openSeries(b.id) : undefined,
     onQueueToggle: !b.is_series ? () => queueToggle(b) : undefined,
     onLibbyHold: !b.is_series ? promptHold : undefined,
+    onBorrowed: !b.is_series && hasHold(b) ? () => markBorrowed(b) : undefined,
   });
 
   // A fresh library holds only the two auto-recommended starter titles — show
@@ -1122,6 +1149,7 @@ export default function App({ session, onSignOut }) {
             books={books}
             libbyKey={prefs.libby_key}
             onEditHold={(book) => setHold({ book, editing: true })}
+            onBorrowed={markBorrowed}
           />
         )}
 
