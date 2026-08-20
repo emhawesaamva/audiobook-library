@@ -562,18 +562,18 @@ try {
     // It survives a view change...
     await page.locator('button[title="covers"]').click();
     await page.waitForTimeout(400);
-    await page.getByText(/Ask your own AI what to listen to next/).waitFor({ state: "visible" });
+    await page.getByText(/Use your library with Claude/).first().waitFor({ state: "visible" });
 
     // ...and goes away when dismissed, for good — the dismissal is stored on the
     // account, not in this tab.
     await page.getByRole("button", { name: "Dismiss" }).first().click();
     await page.waitForTimeout(600);
-    if (await page.getByText(/Ask your own AI what to listen to next/).isVisible().catch(() => false)) {
+    if (await page.getByText(/Use your library with Claude/).first().isVisible().catch(() => false)) {
       throw new Error("promo still visible after dismiss");
     }
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForTimeout(1500);
-    if (await page.getByText(/Use your library with Claude|Ask your own AI/).first().isVisible().catch(() => false)) {
+    if (await page.getByText(/Use your library with Claude/).first().isVisible().catch(() => false)) {
       throw new Error("promo came back after a reload — the dismissal did not persist");
     }
     await page.locator('button[title="cards"]').click().catch(() => {});
