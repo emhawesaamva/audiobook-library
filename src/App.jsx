@@ -762,6 +762,27 @@ export default function App({ session, onSignOut }) {
   // an explainer card alongside them until the user adds a book of their own.
   const showRecExplainer = books.length === 2 && books.every((b) => getStatus(b) === "recommended");
 
+  // The "connect your own AI" promo. Held back until the library is worth
+  // talking about, and brought back after enough new books that a dismissal
+  // has clearly gone stale — rather than nagging, or vanishing forever after
+  // one impatient click. The dismissal records the book count at the time, so
+  // it lives in user_settings and follows the account across devices.
+  const MCP_PROMO_MIN_BOOKS = 5;
+  const MCP_PROMO_REPEAT_AFTER = 20;
+  const bookCount = flattenBooks(books).length;
+  const mcpDismissedAt = prefs.mcp_promo_dismissed_at;
+  const showMcpPromo =
+    bookCount >= MCP_PROMO_MIN_BOOKS &&
+    (mcpDismissedAt == null || bookCount >= mcpDismissedAt + MCP_PROMO_REPEAT_AFTER);
+  const mcpPromo = (view) =>
+    showMcpPromo && (
+      <McpPromoCard
+        view={view}
+        onOpen={() => setSettingsOpen(true)}
+        onDismiss={() => savePrefs({ mcp_promo_dismissed_at: bookCount })}
+      />
+    );
+
   // Underline tabs: the row sits on a shared baseline and the active tab's
   // marker sits *on* that line (-mb-px), so the selected tab reads as connected
   // to the panel below rather than as one more button in a row of buttons.
@@ -1056,6 +1077,7 @@ export default function App({ session, onSignOut }) {
             ) : view === "covers" ? (
               <>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+                  {mcpPromo("covers")}
                   {pageRows.map((row) =>
                     row.type === "heading"
                       ? <GroupHeading key={row.key} label={row.label} grid />
@@ -1068,6 +1090,7 @@ export default function App({ session, onSignOut }) {
             ) : view === "list" ? (
               <>
                 <div className="rounded-xl border border-zinc-300/90 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                  {mcpPromo("list")}
                   {pageRows.map((row) =>
                     row.type === "heading"
                       ? <GroupHeading key={row.key} label={row.label} />
@@ -1080,6 +1103,7 @@ export default function App({ session, onSignOut }) {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {mcpPromo("cards")}
                   {pageRows.map((row) =>
                     row.type === "heading"
                       ? <GroupHeading key={row.key} label={row.label} grid />
@@ -1304,6 +1328,69 @@ function RecExplainerCard({ view }) {
     <div className={`flex items-center gap-3 rounded-xl border p-4 ${accent}`}>
       <Sparkles className="h-6 w-6 shrink-0 text-accent-600" />
       <p className="text-sm leading-snug">These two popular titles were recommended for you by AudioLib to get you started. Add a book of your own and your recommendations start matching your taste.</p>
+    </div>
+  );
+}
+
+// Tells people the app can be driven by their own AI assistant — a thing you
+// would never discover from the library screen. Deliberately avoids leading
+// with "MCP": the acronym means nothing to most people, and what they care
+// about is that Claude can answer from their own shelf.
+//
+// Placed FIRST rather than last (unlike RecExplainerCard) because it is an
+// announcement, not a footnote on the books above it.
+function McpPromoCard({ view, onOpen, onDismiss }) {
+  const accent = "border-dashed border-accent-300 bg-accent-50/60 text-zinc-600 dark:border-accent-700/40 dark:bg-accent-700/5 dark:text-zinc-300";
+  const dismiss = (
+    <button
+      onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+      aria-label="Dismiss"
+      className="shrink-0 rounded p-1 text-zinc-400 transition hover:bg-zinc-200/60 hover:text-zinc-600 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-300"
+    >
+      <X className="h-3.5 w-3.5" />
+    </button>
+  );
+  const link = (
+    <button onClick={onOpen} className="cursor-pointer font-semibold text-accent-700 underline-offset-2 hover:underline dark:text-accent-400">
+      Set it up
+    </button>
+  );
+
+  if (view === "list") {
+    return (
+      <div className={`flex items-center gap-2.5 border-b px-3 py-3 text-sm ${accent}`}>
+        <Sparkles className="h-4 w-4 shrink-0 text-accent-600" />
+        <span className="flex-1">
+          <strong className="font-semibold">Use your library with Claude.</strong>{" "}
+          Connect your own AI assistant and ask it what to listen to next — it answers from
+          the books you've actually loved. {link}
+        </span>
+        {dismiss}
+      </div>
+    );
+  }
+  if (view === "covers") {
+    return (
+      <div className={`relative flex aspect-[1/1.5] flex-col items-center justify-center rounded-lg border p-3 text-center ${accent}`}>
+        <div className="absolute right-1 top-1">{dismiss}</div>
+        <Sparkles className="mb-2 h-5 w-5 text-accent-600" />
+        <p className="text-[11px] font-medium leading-snug">
+          Ask your own AI what to listen to next — it answers from your library
+        </p>
+        <span className="mt-1.5 text-[11px]">{link}</span>
+      </div>
+    );
+  }
+  // cards
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border p-4 ${accent}`}>
+      <Sparkles className="mt-0.5 h-6 w-6 shrink-0 text-accent-600" />
+      <p className="flex-1 text-sm leading-snug">
+        <strong className="font-semibold">Use your library with Claude.</strong>{" "}
+        Connect your own AI assistant and ask it what to listen to next — it answers from the
+        books you've actually loved, and can add them for you. {link}
+      </p>
+      {dismiss}
     </div>
   );
 }
