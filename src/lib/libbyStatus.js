@@ -59,6 +59,13 @@ export function booksNeedingLibbyCheck(books, { now = Date.now(), limit = Infini
 // Days rather than weeks under a fortnight, because "3 days" and "13 days" are
 // different decisions; beyond that weeks read better.
 export function libbyBadge(book) {
+  // Same gate as the lookup itself: borrowing is only a live question for books
+  // you are still deciding on. Once one is being listened to, finished or
+  // abandoned, whatever we last cached about it says nothing worth showing —
+  // including a leftover hold, which borrowing has already resolved. Series
+  // headers are never looked up either; availability belongs to each volume.
+  if (!book || book.is_series) return null;
+  if (!LIBBY_TRACKED_STATUSES.includes(book.status)) return null;
   // A recorded hold outranks whatever the catalogue says: you have already
   // acted, so "available" or "12w wait" is no longer the useful fact.
   if (hasHold(book)) return { tone: "hold", base: "Libby on hold", wait: null };

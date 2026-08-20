@@ -341,14 +341,39 @@ try {
     await page.getByText(/UP NEXT|queued/i).first().waitFor({ state: "visible" });
   });
 
+  await step("finishing-a-queued-book-takes-it-out-of-the-queue", async () => {
+    // Up Next is what you have yet to get to, so a book you mark finished has to
+    // leave it. Nothing else clears queue_position, so without this the queue
+    // silently accumulates books that are already done.
+    const queued = () => page.evaluate(() =>
+      (document.querySelector("[data-upnext-drawer]")?.innerText ?? "").includes("Recursion"));
+
+    await addBookManually("Recursion", { status: "wanttoread" });
+    await page.locator("[data-book-card]").filter({ hasText: "Recursion" }).first().click();
+    await page.getByRole("button", { name: /Add to Up Next/ }).click();
+    await page.waitForTimeout(700);
+    if (!(await queued())) throw new Error("Recursion never made it into Up Next");
+
+    await page.locator("[data-book-card]").filter({ hasText: "Recursion" }).first().click();
+    await page.getByRole("button", { name: /^Edit/ }).click();
+    await page.locator('select:has(option[value="wanttoread"])').first().selectOption("read");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForTimeout(900);
+    if (await queued()) throw new Error("a finished book is still sitting in Up Next");
+  });
+
   await step("delete-book", async () => {
-    // Delete Dune (a grid card, not the queued PHM which also appears in the Up Next strip).
-    await page.getByText("Dune", { exact: true }).first().click();
+    // Delete Dune from its grid card. Scoped to [data-book-card] because the
+    // drawer lists the same titles — Dune is being listened to by now, so it
+    // also sits in Now Reading, and a bare text match would find that row
+    // (rendered first, and off-screen while the drawer is closed) instead.
+    const card = page.locator("[data-book-card]").filter({ hasText: "Dune" }).first();
+    await card.click();
     await page.getByRole("button", { name: "Delete", exact: true }).click(); // menu -> confirm view
     await page.getByText(/Delete\s+"Dune"\?/).waitFor({ state: "visible" });
     await page.getByRole("button", { name: "Delete", exact: true }).click(); // confirm
     await page.waitForTimeout(700);
-    if (await page.getByText("Dune", { exact: true }).first().isVisible().catch(() => false)) throw new Error("book still present after delete");
+    if (await page.locator("[data-book-card]").filter({ hasText: "Dune" }).count()) throw new Error("book still present after delete");
   });
 
   // ---------- STATS ----------
@@ -394,10 +419,10 @@ try {
     await page.getByRole("button", { name: "Library", exact: true }).click();
   });
 
-  await step("borrowed-clears-the-hold-starts-it-and-jumps-the-queue", async () => {
+  await step("borrowed-clears-the-hold-starts-it-and-leaves-the-queue", async () => {
     // The moment a hold resolves. One button doing three things, so all three
     // get checked: the hold is gone, the book is being listened to now, and it
-    // is at the FRONT of Up Next rather than appended to the back.
+    // sits in the drawer's Now Reading section rather than in Up Next.
     //
     // Places its own hold first — the earlier hold steps deliberately end with
     // the tab empty, and reusing their hold would couple the two sequences.
@@ -431,11 +456,17 @@ try {
     await page.getByPlaceholder(/Search title/).fill("");
     await page.waitForTimeout(400);
 
-    const first = await page.evaluate(() => {
-      const strip = document.querySelector('[data-up-next]') ?? document.body;
-      return /Piranesi/.test(strip.textContent ?? "") ? "in queue" : "not in queue";
+    // The drawer splits at its "Up Next" heading: everything above is Now
+    // Reading, everything below is the queue. The borrowed book belongs in the
+    // first half and nowhere in the second.
+    const where = await page.evaluate(() => {
+      const text = document.querySelector("[data-upnext-drawer]")?.innerText ?? "";
+      const split = text.indexOf("UP NEXT");
+      const [reading, next] = split < 0 ? [text, ""] : [text.slice(0, split), text.slice(split)];
+      return { reading: /Piranesi/.test(reading), next: /Piranesi/.test(next) };
     });
-    if (first !== "in queue") throw new Error("borrowed book is not in Up Next");
+    if (!where.reading) throw new Error("borrowed book is not in Now Reading");
+    if (where.next) throw new Error("borrowed book is still listed in Up Next");
   });
 
   await step("stats-goals", async () => {

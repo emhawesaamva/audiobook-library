@@ -116,7 +116,7 @@ function HoldRow({ book, weeksLeft, libbyKey, onEditHold, onBorrowed }) {
         <button
           onClick={onBorrowed}
           className="rounded-md border border-accent-500/60 px-2 py-1 text-xs font-semibold text-accent-700 transition hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-700/10 cursor-pointer"
-          title="Clear the hold, start listening, and put it first in Up Next"
+          title="Clear the hold and start listening to it now"
         >
           <BookCheck className="mr-1 inline h-3.5 w-3.5" />Borrowed
         </button>

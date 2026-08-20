@@ -200,14 +200,31 @@ export function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Status transitions auto-set listening dates (still editable in the form).
-export function withAutoDates(fields, prev, now = today()) {
+// The side effects a status carries with it, applied by every write path (the
+// book form, the series sub-form, and the MCP write tools) so they cannot drift.
+
+// Statuses that mean the book is no longer something you have yet to get to.
+const OUT_OF_QUEUE_STATUSES = ["reading", "read", "dnf"];
+
+export function withStatusEffects(fields, prev, now = today()) {
   const out = { ...fields };
+  // Listening dates, still editable in the form afterwards.
   if (out.status === "reading" && !out.date_started) out.date_started = now;
   if (out.status === "read" && !out.date_finished) {
     out.date_finished = now;
     if (!out.date_started && prev?.date_started) out.date_started = prev.date_started;
   }
+  // Up Next holds what you have yet to start, so moving into any of those
+  // statuses drops the queue slot — the same exit the drawer's play button
+  // gives you. The key is always written, never just left off: the book form
+  // round-trips the whole row, so it would otherwise re-save the stale slot it
+  // was loaded with.
+  //
+  // On the move, not on every save: queueing something you have already read is
+  // a re-listen, a deliberate thing to do, and editing that book's notes later
+  // must not quietly evict it. Only the status actually changing does that.
+  const leavingQueue = OUT_OF_QUEUE_STATUSES.includes(out.status) && out.status !== prev?.status;
+  if (leavingQueue) out.queue_position = null;
   return out;
 }
 
