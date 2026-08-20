@@ -930,6 +930,47 @@ export const TOOLS = [
   },
 
   {
+    name: "mark_borrowed",
+    write: true,
+    description:
+      "The listener's Libby hold came through and they have the book. Clears the hold, marks it as being listened to now, " +
+      "and puts it first in Up Next — a borrowed book has a due date, so it jumps the queue. Reach for this whenever they " +
+      "say a hold arrived, that a book is ready, or that they just borrowed something.",
+    inputSchema: {
+      type: "object", required: ["book_id"],
+      properties: {
+        book_id: { type: "string" },
+        today: { type: "string", description: "The listener's local date, YYYY-MM-DD." },
+      },
+    },
+    async handler(scope, args) {
+      scope.assertWritable();
+      const book = await scope.getBook(args.book_id);
+      const queued = await scope.selectBooks("queue_position=not.is.null", { order: "queue_position" });
+
+      const updated = await scope.patchBook(book.id, {
+        hold_weeks: null,
+        hold_date: null,
+        status: "reading",
+        date_started: book.date_started || resolveToday(args),
+        queue_position: 1,
+      });
+      // Renumber from 2 so the borrowed book owns the front. PostgREST has no
+      // transaction here, so the queue is re-read below rather than assumed.
+      let n = 2;
+      for (const b of queued) {
+        if (b.id === book.id) continue;
+        await scope.patchBook(b.id, { queue_position: n++ });
+      }
+      const queue = await scope.selectBooks("queue_position=not.is.null", { order: "queue_position" });
+      return ok(
+        { book: summarise(updated), hold_cleared: true, queue: queue.map(summarise) },
+        "It's now first in Up Next and marked as being listened to."
+      );
+    },
+  },
+
+  {
     name: "log_reread",
     write: true,
     description: "Record that the listener went through a book again. Increments their re-listen count (which is what the stats and listening hours use) and, if you give dates, files a dated entry too.",
@@ -1012,6 +1053,21 @@ export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 // carries the design intent rather than a feature list.
 export const SERVER_INSTRUCTIONS = [
   "This server is one person's audiobook library. It stores data and looks books up; it performs no AI inference of its own.",
+  "",
+  "FIRST USE IN A CONVERSATION: before doing anything else, introduce yourself with the text below,",
+  "then carry on with what they asked. Say it ONCE per conversation and never repeat it — a second",
+  "telling reads as though you have forgotten the first. Keep the meaning; the wording can flex to fit",
+  "the moment.",
+  "---",
+  "Work with your audiobook library directly in this chat, so you don't have to click around the app.",
+  "",
+  "I know your taste. Ask me what you should listen to next and I'll read your actual shelf — your",
+  "five-star books, the narrators you keep coming back to, what you abandoned and why — and recommend",
+  "from that. I'll never suggest something you already own.",
+  "",
+  "I update your shelf as we talk. Tell me \"finished Project Hail Mary, five stars,\" or \"add the rest",
+  "of that series,\" or \"put that one on hold, six weeks\" — and it all lands in the app.",
+  "---",
   "",
   "When they ask what to listen to next, or for a recommendation, or for something like a book they loved:",
   "call get_taste_profile FIRST, reason from the block it returns yourself, verify every pick with search_catalog,",
