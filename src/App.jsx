@@ -518,6 +518,16 @@ export default function App({ session, onSignOut }) {
     return all.filter((b) => b.queue_position != null).sort((a, b) => a.queue_position - b.queue_position);
   }, [books]);
 
+  // The drawer shows what's being listened to now above what's queued. A
+  // borrowed book is both — it keeps its queue slot (see markBorrowed) — so
+  // Now Reading claims it and the Up Next list drops it rather than listing the
+  // same book twice.
+  const nowReading = useMemo(
+    () => flattenBooks(books).filter((b) => b.status === "reading"),
+    [books]
+  );
+  const upNext = useMemo(() => queue.filter((b) => b.status !== "reading"), [queue]);
+
   // Crowd-favorite nudge when the queue is empty: best publicly rated
   // Want-to-Listen book.
   const crowdPick = useMemo(() => {
@@ -544,9 +554,11 @@ export default function App({ session, onSignOut }) {
   // by hand means clearing the hold, changing the status, and reordering the
   // queue in three separate places.
   //
-  // Note this deliberately leaves the book in Up Next while marking it as being
+  // Note this deliberately keeps the book's queue slot while marking it as being
   // listened to, unlike startListening() which clears queue_position — a
-  // borrowed book has a due date, so it belongs at the top of what's next.
+  // borrowed book has a due date, so it belongs at the top of what's next. The
+  // drawer lists it under Now Reading rather than in the Up Next section, so it
+  // holds the front slot without appearing twice.
   const markBorrowed = guard(async (book) => {
     const others = queue.filter((b) => b.id !== book.id);
     await db.updateBook(book.id, {
@@ -1001,8 +1013,8 @@ export default function App({ session, onSignOut }) {
 
         {tab === "library" && (
           <>
-            <UpNext queue={queue} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
-            {queue.length === 0 && crowdPick && (
+            <UpNext queue={upNext} reading={nowReading} onReorder={async (entries) => { await db.setQueuePositions(entries); refreshBooks(); }} onRemove={queueToggle} onStart={startListening} />
+            {upNext.length === 0 && crowdPick && (
               <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-accent-200/70 bg-accent-50/50 px-3 py-2.5 text-sm dark:border-accent-700/30 dark:bg-accent-700/5">
                 <span className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 shrink-0 text-accent-600" />

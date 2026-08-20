@@ -342,13 +342,17 @@ try {
   });
 
   await step("delete-book", async () => {
-    // Delete Dune (a grid card, not the queued PHM which also appears in the Up Next strip).
-    await page.getByText("Dune", { exact: true }).first().click();
+    // Delete Dune from its grid card. Scoped to [data-book-card] because the
+    // drawer lists the same titles — Dune is being listened to by now, so it
+    // also sits in Now Reading, and a bare text match would find that row
+    // (rendered first, and off-screen while the drawer is closed) instead.
+    const card = page.locator("[data-book-card]").filter({ hasText: "Dune" }).first();
+    await card.click();
     await page.getByRole("button", { name: "Delete", exact: true }).click(); // menu -> confirm view
     await page.getByText(/Delete\s+"Dune"\?/).waitFor({ state: "visible" });
     await page.getByRole("button", { name: "Delete", exact: true }).click(); // confirm
     await page.waitForTimeout(700);
-    if (await page.getByText("Dune", { exact: true }).first().isVisible().catch(() => false)) throw new Error("book still present after delete");
+    if (await page.locator("[data-book-card]").filter({ hasText: "Dune" }).count()) throw new Error("book still present after delete");
   });
 
   // ---------- STATS ----------
