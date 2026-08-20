@@ -5,9 +5,9 @@ import { Cover, StatusChip } from "./shared.jsx";
 import {
   getStatus, hasHold, holdWeeksLeft, holdGroupLabel, libbySearchUrl,
 } from "../lib/bookUtils.js";
-import { Clock, Pencil, Library } from "lucide-react";
+import { Clock, Pencil, Library, BookCheck } from "lucide-react";
 
-export default function Holds({ books, libbyKey, onEditHold }) {
+export default function Holds({ books, libbyKey, onEditHold, onBorrowed }) {
   // Series members can carry their own hold, so walk headers and children
   // alike; a header itself never has one (its status is derived).
   const held = books
@@ -68,6 +68,7 @@ export default function Holds({ books, libbyKey, onEditHold }) {
               weeksLeft={row.weeksLeft}
               libbyKey={libbyKey}
               onEditHold={() => onEditHold(row.book)}
+              onBorrowed={() => onBorrowed(row.book)}
             />
           )
         )}
@@ -76,7 +77,7 @@ export default function Holds({ books, libbyKey, onEditHold }) {
   );
 }
 
-function HoldRow({ book, weeksLeft, libbyKey, onEditHold }) {
+function HoldRow({ book, weeksLeft, libbyKey, onEditHold, onBorrowed }) {
   const placed = new Date(`${book.hold_date}T00:00:00`);
   const elapsed = Math.max(0, Math.round((Date.now() - placed) / 86_400_000 / 7));
 
@@ -109,7 +110,16 @@ function HoldRow({ book, weeksLeft, libbyKey, onEditHold }) {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-1">
+        {/* Labelled, not another icon: a hold coming through is the only reason
+            anyone opens this page, and this is the action that resolves it. */}
+        <button
+          onClick={onBorrowed}
+          className="rounded-md border border-accent-500/60 px-2 py-1 text-xs font-semibold text-accent-700 transition hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-700/10 cursor-pointer"
+          title="Clear the hold, start listening, and put it first in Up Next"
+        >
+          <BookCheck className="mr-1 inline h-3.5 w-3.5" />Borrowed
+        </button>
         <a
           href={libbySearchUrl(book, libbyKey)}
           target="_blank"

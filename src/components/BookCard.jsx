@@ -2,13 +2,13 @@
 // All three share the same action menu (edit / delete / queue / links).
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Stars, StatusChip, Cover } from "./shared.jsx";
-import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Library, Plus } from "lucide-react";
+import { Pencil, Trash2, Headphones, BookOpen, ListPlus, ListX, Mic, Heart, Library, Plus, BookCheck } from "lucide-react";
 import {
   getStatus, calcSeriesRating, fmtDuration, audibleSearchUrl, goodreadsSearchUrl, libbySearchUrl,
 } from "../lib/bookUtils.js";
 import { libbyBadge } from "../lib/libbyStatus.js";
 
-export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, onLibbyHold, readOnly, onClose }) {
+export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQueueToggle, onAdd, onLibbyHold, onBorrowed, readOnly, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const ref = useRef(null);
   const backdropRef = useRef(null);
@@ -114,6 +114,14 @@ export function ActionMenu({ book, libbyKey, affiliateTag, onEdit, onDelete, onQ
           </div>
         ) : (
           <>
+            {onBorrowed && (
+              <button
+                className={`${item} font-semibold text-accent-700 dark:text-accent-400`}
+                onClick={() => { onClose(); onBorrowed(); }}
+              >
+                <BookCheck className="h-3.5 w-3.5" /> Borrowed it
+              </button>
+            )}
             <button className={item} onClick={() => { onClose(); onEdit(); }}><Pencil className="h-3.5 w-3.5" /> Edit</button>
             {!book.is_series && onQueueToggle && (
               <button className={item} onClick={() => { onClose(); onQueueToggle(); }}>
@@ -171,7 +179,7 @@ function LukewarmNote({ book }) {
 }
 
 // ---- view: card grid ----
-export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
+export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, onBorrowed, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -212,13 +220,13 @@ export function BookCardGrid({ book, libbyKey, affiliateTag, onEdit, onDelete, o
           </div>
         </div>
       </div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} onBorrowed={onBorrowed} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }
 
 // ---- view: cover grid ----
-export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
+export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, onBorrowed, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -245,7 +253,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
         </div>
         {book.loved && <Heart className="absolute right-1.5 top-1.5 h-4 w-4 fill-accent-500 text-accent-500 drop-shadow" />}
       </div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} onBorrowed={onBorrowed} readOnly={readOnly} onClose={() => setMenu(false)} />}
       <div className="mt-1.5 truncate text-xs font-medium">{book.title}</div>
       <div className="flex items-center justify-between">
         <span className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{book.author}</span>
@@ -256,7 +264,7 @@ export function BookCoverTile({ book, libbyKey, affiliateTag, onEdit, onDelete, 
 }
 
 // ---- view: list row ----
-export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, readOnly }) {
+export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, onOpen, onQueueToggle, onAdd, onLibbyHold, onBorrowed, readOnly }) {
   const [menu, setMenu] = useState(false);
   const status = getStatus(book);
   const rating = calcSeriesRating(book);
@@ -304,7 +312,7 @@ export function BookListRow({ book, libbyKey, affiliateTag, onEdit, onDelete, on
       <div className="hidden shrink-0 sm:block"><LibbyChip book={book} /></div>
       <div className="hidden shrink-0 text-right sm:block">{rating > 0 && <Stars rating={rating} size="text-xs" />}</div>
       <div className="hidden shrink-0 text-right sm:block"><StatusChip status={status} /></div>
-      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} readOnly={readOnly} onClose={() => setMenu(false)} />}
+      {menu && <ActionMenu book={book} libbyKey={libbyKey} affiliateTag={affiliateTag} onEdit={onEdit} onDelete={onDelete} onQueueToggle={onQueueToggle} onAdd={onAdd} onLibbyHold={onLibbyHold} onBorrowed={onBorrowed} readOnly={readOnly} onClose={() => setMenu(false)} />}
     </div>
   );
 }
