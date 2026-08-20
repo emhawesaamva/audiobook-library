@@ -541,6 +541,45 @@ try {
     await page.waitForTimeout(300);
   });
 
+  await step("mcp-promo-shows-first-and-dismisses", async () => {
+    // By now the library is well past the 5-book threshold, so the promo should
+    // be up. It is an announcement, so it has to be the FIRST thing in the list
+    // — not appended after the books like the recommendation explainer.
+    await page.getByRole("button", { name: "Library", exact: true }).click().catch(() => {});
+    await page.locator('button[title="list"]').click();
+    await page.waitForTimeout(500);
+
+    const promo = page.getByText(/Use your library with Claude/);
+    await promo.waitFor({ state: "visible" });
+
+    const isFirst = await page.evaluate(() => {
+      const promo = [...document.querySelectorAll("div.border-b")]
+        .find((d) => /Use your library with Claude/.test(d.textContent ?? ""));
+      return !!promo && promo.parentElement.firstElementChild === promo;
+    });
+    if (!isFirst) throw new Error("promo is not the first row in the list");
+
+    // It survives a view change...
+    await page.locator('button[title="covers"]').click();
+    await page.waitForTimeout(400);
+    await page.getByText(/Ask your own AI what to listen to next/).waitFor({ state: "visible" });
+
+    // ...and goes away when dismissed, for good — the dismissal is stored on the
+    // account, not in this tab.
+    await page.getByRole("button", { name: "Dismiss" }).first().click();
+    await page.waitForTimeout(600);
+    if (await page.getByText(/Ask your own AI what to listen to next/).isVisible().catch(() => false)) {
+      throw new Error("promo still visible after dismiss");
+    }
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
+    if (await page.getByText(/Use your library with Claude|Ask your own AI/).first().isVisible().catch(() => false)) {
+      throw new Error("promo came back after a reload — the dismissal did not persist");
+    }
+    await page.locator('button[title="cards"]').click().catch(() => {});
+    await page.waitForTimeout(300);
+  });
+
   // ---------- MCP access tokens ----------
   await step("mcp-token-create-and-revoke", async () => {
     await openSettings();
