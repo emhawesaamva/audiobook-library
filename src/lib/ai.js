@@ -29,6 +29,46 @@ export function extractJSON(txt) {
   return null;
 }
 
+// Provider error text is not user-facing copy. Anthropic and Gemini both return
+// messages written for whoever holds the API key: quota metric names, model ids,
+// billing links, "please check your plan and billing details". Worse, when
+// Anthropic credit runs out we fail over to Gemini (see api/_lib/messages-core.js),
+// so passing the raw message through told users "This model is currently
+// experiencing high demand" — a sentence that only makes sense if you know you
+// were just moved onto a different provider mid-request. Map onto our own copy
+// instead, and never name a vendor.
+//
+// Returns { text, retryable }: `retryable` distinguishes "come back in a minute"
+// from failures no amount of retrying will fix, so callers can decide whether
+// offering another go is honest.
+export function friendlyAiError(message) {
+  const m = String(message ?? "");
+
+  // Order matters: the credit-exhausted 400 also mentions billing details, and
+  // the free-tier 429 mentions both quota and a plan.
+  if (/credit balance is too low/i.test(m))
+    return { text: "Recommendations are temporarily unavailable. Try again later.", retryable: true };
+
+  if (/quota|rate.?limit|too many requests|resource.?exhausted|\b429\b/i.test(m))
+    return { text: "Too many recommendation requests just now. Give it a minute and try again.", retryable: true };
+
+  if (/high demand|overloaded|unavailable|try again later|\b503\b|\b529\b/i.test(m))
+    return { text: "The recommendation service is busy right now. Try again in a minute.", retryable: true };
+
+  // A bad or missing key is our configuration, not something the user can wait out.
+  if (/api key|unauthenticated|unauthorized|authentication|permission denied|\b401\b|\b403\b/i.test(m))
+    return { text: "Recommendations aren't working right now — something on our end needs fixing. Retrying won't help.", retryable: false };
+
+  // Empty or unparseable answers: the Gemini fallback's "returned no content",
+  // and our own "No JSON found in response". A second attempt often works.
+  if (/no content|no json|couldn't make sense/i.test(m))
+    return { text: "The recommendation service didn't send anything back. Try again.", retryable: true };
+
+  // Anything unrecognised — including HTML error pages from the proxy — gets the
+  // generic line rather than a vendor string echoed at the user.
+  return { text: "Couldn't get recommendations just now. Try again in a moment.", retryable: true };
+}
+
 // Shared recommendation engine used by the manual search UI and the
 // auto-recommend background job. Returns { recommendations: [...], note }.
 export async function fetchRecommendations({ books, profileName, ageGroup, query, model, maxTokens = 4000 }) {
