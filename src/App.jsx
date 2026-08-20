@@ -518,10 +518,10 @@ export default function App({ session, onSignOut }) {
     return all.filter((b) => b.queue_position != null).sort((a, b) => a.queue_position - b.queue_position);
   }, [books]);
 
-  // The drawer shows what's being listened to now above what's queued. A
-  // borrowed book is both — it keeps its queue slot (see markBorrowed) — so
-  // Now Reading claims it and the Up Next list drops it rather than listing the
-  // same book twice.
+  // The drawer shows what's being listened to now above what's queued. A book can
+  // be both — set a queued book to Reading in the edit form and it keeps its slot
+  // — so Now Reading claims it and the Up Next list drops it rather than listing
+  // the same book twice.
   const nowReading = useMemo(
     () => flattenBooks(books).filter((b) => b.status === "reading"),
     [books]
@@ -550,31 +550,25 @@ export default function App({ session, onSignOut }) {
   });
 
   // "Borrowed": the hold came through and the book is in hand. One action rather
-  // than three, because this is the moment a hold actually resolves and doing it
-  // by hand means clearing the hold, changing the status, and reordering the
-  // queue in three separate places.
+  // than two, because this is the moment a hold actually resolves and doing it by
+  // hand means clearing the hold and changing the status separately.
   //
-  // Note this deliberately keeps the book's queue slot while marking it as being
-  // listened to, unlike startListening() which clears queue_position — a
-  // borrowed book has a due date, so it belongs at the top of what's next. The
-  // drawer lists it under Now Reading rather than in the Up Next section, so it
-  // holds the front slot without appearing twice.
+  // It drops the book's queue slot, exactly like startListening(). A borrowed book
+  // has a due date, so it wants to be the next thing you reach for — and the
+  // drawer now says so by listing it in Now Reading, above the queue rather than
+  // inside it. Keeping a slot on top of that bought nothing visible and outlived
+  // the book: nothing clears queue_position when a book is finished, so a slot
+  // taken here would put a read book back at the head of Up Next.
   const markBorrowed = guard(async (book) => {
-    const others = queue.filter((b) => b.id !== book.id);
     await db.updateBook(book.id, {
       hold_weeks: null,
       hold_date: null,
       status: "reading",
       date_started: book.date_started || today(),
-      queue_position: 1,
+      queue_position: null,
     });
-    // Renumber from 2 so the borrowed book owns the front of the queue. Small N,
-    // and setQueuePositions writes them sequentially.
-    if (others.length) {
-      await db.setQueuePositions(others.map((b, i) => ({ id: b.id, queue_position: i + 2 })));
-    }
     await refreshBooks();
-    setToast({ text: `Borrowed "${book.title}" — it's first in Up Next` });
+    setToast({ text: `Borrowed "${book.title}" — it's in Now Reading` });
   });
 
   // ---- library holds ----

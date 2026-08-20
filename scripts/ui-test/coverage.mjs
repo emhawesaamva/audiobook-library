@@ -398,10 +398,10 @@ try {
     await page.getByRole("button", { name: "Library", exact: true }).click();
   });
 
-  await step("borrowed-clears-the-hold-starts-it-and-jumps-the-queue", async () => {
+  await step("borrowed-clears-the-hold-starts-it-and-leaves-the-queue", async () => {
     // The moment a hold resolves. One button doing three things, so all three
     // get checked: the hold is gone, the book is being listened to now, and it
-    // is at the FRONT of Up Next rather than appended to the back.
+    // sits in the drawer's Now Reading section rather than in Up Next.
     //
     // Places its own hold first — the earlier hold steps deliberately end with
     // the tab empty, and reusing their hold would couple the two sequences.
@@ -435,11 +435,17 @@ try {
     await page.getByPlaceholder(/Search title/).fill("");
     await page.waitForTimeout(400);
 
-    const first = await page.evaluate(() => {
-      const strip = document.querySelector('[data-up-next]') ?? document.body;
-      return /Piranesi/.test(strip.textContent ?? "") ? "in queue" : "not in queue";
+    // The drawer splits at its "Up Next" heading: everything above is Now
+    // Reading, everything below is the queue. The borrowed book belongs in the
+    // first half and nowhere in the second.
+    const where = await page.evaluate(() => {
+      const text = document.querySelector("[data-upnext-drawer]")?.innerText ?? "";
+      const split = text.indexOf("UP NEXT");
+      const [reading, next] = split < 0 ? [text, ""] : [text.slice(0, split), text.slice(split)];
+      return { reading: /Piranesi/.test(reading), next: /Piranesi/.test(next) };
     });
-    if (first !== "in queue") throw new Error("borrowed book is not in Up Next");
+    if (!where.reading) throw new Error("borrowed book is not in Now Reading");
+    if (where.next) throw new Error("borrowed book is still listed in Up Next");
   });
 
   await step("stats-goals", async () => {

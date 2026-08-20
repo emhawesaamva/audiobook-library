@@ -934,7 +934,7 @@ export const TOOLS = [
     write: true,
     description:
       "The listener's Libby hold came through and they have the book. Clears the hold, marks it as being listened to now, " +
-      "and puts it first in Up Next — a borrowed book has a due date, so it jumps the queue. Reach for this whenever they " +
+      "and takes it out of Up Next — it is no longer something to get to. Reach for this whenever they " +
       "say a hold arrived, that a book is ready, or that they just borrowed something.",
     inputSchema: {
       type: "object", required: ["book_id"],
@@ -946,26 +946,24 @@ export const TOOLS = [
     async handler(scope, args) {
       scope.assertWritable();
       const book = await scope.getBook(args.book_id);
-      const queued = await scope.selectBooks("queue_position=not.is.null", { order: "queue_position" });
 
+      // The queue slot goes, the way it does when a book is started by hand: a
+      // borrowed book is no longer something to get to, it is the thing being
+      // listened to, and the app's drawer lists it above the queue rather than
+      // in it. A kept slot would also outlive the book — nothing clears
+      // queue_position on finishing, so it would resurface at the head of the
+      // queue as a read book.
       const updated = await scope.patchBook(book.id, {
         hold_weeks: null,
         hold_date: null,
         status: "reading",
         date_started: book.date_started || resolveToday(args),
-        queue_position: 1,
+        queue_position: null,
       });
-      // Renumber from 2 so the borrowed book owns the front. PostgREST has no
-      // transaction here, so the queue is re-read below rather than assumed.
-      let n = 2;
-      for (const b of queued) {
-        if (b.id === book.id) continue;
-        await scope.patchBook(b.id, { queue_position: n++ });
-      }
       const queue = await scope.selectBooks("queue_position=not.is.null", { order: "queue_position" });
       return ok(
         { book: summarise(updated), hold_cleared: true, queue: queue.map(summarise) },
-        "It's now first in Up Next and marked as being listened to."
+        "The hold is cleared and it's marked as being listened to."
       );
     },
   },
