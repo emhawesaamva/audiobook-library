@@ -124,7 +124,9 @@ export default function McpTokens({ profile, onToast }) {
           <li>
             <strong className="text-zinc-700 dark:text-zinc-300">2. In Claude,</strong> open
             Settings → Connectors → <em>Add</em> → <em>Add custom connector</em>. Name it
-            anything; the server URL is <code className="font-mono">{MCP_URL}</code>.
+            {/* No full stop after the URL — it sits flush against the address and
+                gets selected along with it when someone copies by hand. */}
+            anything; the server URL is <code className="font-mono">{MCP_URL}</code>
           </li>
           <li>
             <strong className="text-zinc-700 dark:text-zinc-300">3. Set Authentication to “None”.</strong>{" "}
