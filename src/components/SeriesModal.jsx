@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Dialog, Stars, StatusChip, Cover, Spinner, btnSecondary, ConfirmRow } from "./shared.jsx";
 import BookForm from "./BookForm.jsx";
-import { ActionMenu } from "./BookCard.jsx";
+import { ActionMenu, LibbyChip } from "./BookCard.jsx";
 import { calcSeriesRating, fmtDuration } from "../lib/bookUtils.js";
 import { Heart } from "lucide-react";
 import { searchBooks, seriesVolumes, resultToBook } from "../lib/metadata.js";
@@ -167,6 +167,10 @@ export default function SeriesModal({ series, recommenders = [], allTags = [], l
                   </div>
                 </div>
                 {Number(b.rating) > 0 && <Stars rating={b.rating} size="text-xs" />}
+                {/* Volumes were the one place this never showed, so "is this on
+                    Libby or Audible-only?" could only be answered by leaving the
+                    series and finding the book in the library grid. */}
+                <LibbyChip book={b} className="hidden sm:inline-block" />
                 <StatusChip status={b.status} />
                 {openMenu === b.id && (
                   <ActionMenu

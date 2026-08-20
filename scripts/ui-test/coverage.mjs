@@ -443,6 +443,48 @@ try {
     await page.getByText(/series ›/).first().waitFor({ state: "visible", timeout: 10000 });
   });
 
+  await step("series-volume-hold-prompt-sits-above-the-series-panel", async () => {
+    // The reported bug: clicking Libby on a volume opened the "did you put this
+    // book on hold?" prompt UNDERNEATH the series panel, so it was invisible
+    // until you closed the series. Both dialogs were z-50 and stacked by DOM
+    // order alone.
+    await page.getByText(/series ›/).first().click();
+    // The prompt only fires for a book you haven't borrowed yet (ActionMenu's
+    // `holdable`), so pick the want-to-read volume, not the finished one.
+    const volume = page.getByText("Deadhouse Gates").first();
+    await volume.waitFor({ state: "visible" });
+    await volume.click(); // opens the volume's action menu
+    await page.getByRole("link", { name: "Libby" }).first().click();
+
+    const prompt = page.getByText("Did you put this book on hold?");
+    await prompt.waitFor({ state: "visible" });
+
+    // Visible is not the claim — on top is. Hit-test the middle of the prompt's
+    // own dialog: if the series panel were still above it, the point would
+    // belong to the series panel instead.
+    const onTop = await page.evaluate(() => {
+      const heading = [...document.querySelectorAll("h2")]
+        .find((h) => /Did you put this book on hold\?/.test(h.textContent));
+      if (!heading) return "no prompt";
+      const panel = heading.closest("div.fixed").querySelector("div.rounded-xl");
+      const r = panel.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 20);
+      return panel.contains(hit) ? "on top" : "covered";
+    });
+    if (onTop !== "on top") throw new Error(`hold prompt is ${onTop}`);
+
+    // Escape must dismiss only the prompt, leaving the series panel behind it.
+    await page.keyboard.press("Escape");
+    await prompt.waitFor({ state: "hidden" });
+    if (!(await page.getByRole("button", { name: /Fetch missing|Add volume/ }).first().isVisible().catch(() => false))) {
+      // Fall back to any series-panel affordance; the point is it survived.
+      const stillOpen = await page.locator("div.divide-y > div").first().isVisible().catch(() => false);
+      if (!stillOpen) throw new Error("Escape closed the series panel too");
+    }
+    await page.locator('button[aria-label="Close"]').first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  });
+
   await step("paste-import-stubbed", async () => {
     await openSettings();
     await page.getByRole("button", { name: /Paste a list/ }).click();
