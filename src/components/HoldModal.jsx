@@ -58,7 +58,9 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
   };
 
   return (
-    <Dialog title={editing ? "Edit hold" : "Did you put this book on hold?"} onClose={onClose}>
+    // Elevated: this prompt is triggered from elsewhere — including from inside
+    // the series panel — so it has to sit above whatever opened it.
+    <Dialog title={editing ? "Edit hold" : "Did you put this book on hold?"} onClose={onClose} elevated>
       <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/60">
         <Clock className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
         <div className="min-w-0">

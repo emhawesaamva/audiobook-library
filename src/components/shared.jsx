@@ -83,15 +83,43 @@ export function Cover({ book, className = "", rounded = "rounded-md" }) {
 }
 
 // ---- modal dialog ----
-export function Dialog({ title, onClose, children, wide = false }) {
+// `elevated` lifts a dialog above another dialog. Every dialog was z-50, so two
+// open at once stacked by DOM order alone — which put the "did you place a
+// hold?" prompt *underneath* the series panel that triggered it. Below the
+// Toast layer (z-60) on purpose: a toast should stay visible over anything.
+// Every open dialog listened for Escape on window, so one press closed all of
+// them — dismissing the hold prompt also took the series panel out from under
+// it. Only the dialog the user can actually see on top should answer.
+//
+// "On top" is elevation first, mount order second. Mount order alone is wrong:
+// effects run in tree order, so HoldModal (rendered above SeriesModal in
+// App.jsx) registers FIRST and would look like the bottom of the stack —
+// mirroring the very DOM order the z-index override exists to beat.
+const dialogStack = [];
+
+function topDialog() {
+  return dialogStack.reduce((top, d) => (d.elevated >= top.elevated ? d : top), dialogStack[0]);
+}
+
+export function Dialog({ title, onClose, children, wide = false, elevated = false }) {
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const entry = { elevated: elevated ? 1 : 0 };
+    dialogStack.push(entry);
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (topDialog() !== entry) return;
+      onClose();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      const i = dialogStack.indexOf(entry);
+      if (i !== -1) dialogStack.splice(i, 1);
+    };
+  }, [onClose, elevated]);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 pt-[8vh]"
+      className={`fixed inset-0 ${elevated ? "z-[55]" : "z-50"} flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 pt-[8vh]`}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className={`animate-fade-up w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-xl border border-zinc-300/90 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900`}>
