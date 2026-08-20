@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
 import { hasHold, holdWeeksLeft, libbySearchUrl } from "../lib/bookUtils.js";
 import { libbyAvailability } from "../lib/metadata.js";
+import { suggestedHoldWeeks } from "../lib/libbyStatus.js";
 import { Clock, ExternalLink } from "lucide-react";
 
 // Common Libby quotes, so the usual answer is one click rather than typing.
@@ -35,9 +36,8 @@ export default function HoldModal({ book, editing = false, chosen = false, sugge
         if (cancelled) return;
         setAvail(s);
         setAvailState("done");
-        if (!touched.current && s?.owned && s.waitDays != null) {
-          setWeeks(String(Math.max(1, Math.ceil(s.waitDays / 7))));
-        }
+        const suggested = suggestedHoldWeeks(s);
+        if (!touched.current && suggested != null) setWeeks(String(suggested));
       })
       .catch(() => !cancelled && setAvailState("error"));
     return () => { cancelled = true; };

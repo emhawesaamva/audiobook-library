@@ -30,6 +30,26 @@ export function toLibbyState(avail) {
   };
 }
 
+// Weeks to prefill the hold form with, from a live availability response — null
+// meaning "don't answer for them".
+//
+// Available now is the case worth spelling out: OverDrive reports it as
+// estimatedWaitDays 0, which is a number, so it passes a null check and then
+// rounds up through the >0 floor that hold_weeks needs into a suggested 1-week
+// hold. The form would sit there primed to record a hold on a book that is on
+// the shelf, one keystroke away, directly under a note saying borrow it instead.
+export function suggestedHoldWeeks(avail) {
+  if (!avail?.owned || avail.available) return null;
+  // Same coercion as toLibbyState: a missing estimate can arrive as null or "",
+  // and Number(null) is 0, which would read as "available" all over again.
+  const raw = avail.waitDays;
+  const days = raw == null || raw === "" ? NaN : Number(raw);
+  if (!Number.isFinite(days)) return null;
+  // Whole weeks, and hold_weeks has to be > 0 — so a genuine wait shorter than
+  // a week is a one-week hold rather than none.
+  return Math.max(1, Math.ceil(days / 7));
+}
+
 export function isLibbyStale(book, now = Date.now(), maxAgeMs = LIBBY_MAX_AGE_MS) {
   if (!book?.libby_checked_at) return true;
   const t = new Date(book.libby_checked_at).getTime();
