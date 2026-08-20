@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import * as db from "./lib/db.js";
 import { fetchRecommendations } from "./lib/ai.js";
 import { searchBooks as metaSearch, resultToBook, libbyAvailability } from "./lib/metadata.js";
-import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold, today, withAutoDates } from "./lib/bookUtils.js";
+import { getStatus, calcSeriesRating, flattenBooks, sameTitle, hasHold, today, withStatusEffects } from "./lib/bookUtils.js";
 import { booksNeedingLibbyCheck, toLibbyState } from "./lib/libbyStatus.js";
 import { BookCardGrid, BookCoverTile, BookListRow } from "./components/BookCard.jsx";
 import BookForm from "./components/BookForm.jsx";
@@ -411,15 +411,15 @@ export default function App({ session, onSignOut }) {
     let created = null;
     if (fields.id) {
       const prev = books.flatMap((b) => (b.is_series ? [b, ...(b.books ?? [])] : [b])).find((b) => b.id === fields.id);
-      await db.updateBook(fields.id, withAutoDates(fields, prev));
+      await db.updateBook(fields.id, withStatusEffects(fields, prev));
     } else if (targetSeriesId) {
       const series = books.find((b) => b.id === targetSeriesId);
       created = await db.createBook({
-        ...withAutoDates(fields), profile_id: activeId, parent_id: targetSeriesId,
+        ...withStatusEffects(fields), profile_id: activeId, parent_id: targetSeriesId,
         series_position: (series?.books?.length ?? 0) + 1,
       });
     } else {
-      created = await db.createBook({ ...withAutoDates(fields), profile_id: activeId });
+      created = await db.createBook({ ...withStatusEffects(fields), profile_id: activeId });
     }
     await refreshBooks();
     if (isNew && !fields.is_series) maybePromoteAudible(fields);
@@ -1235,9 +1235,12 @@ export default function App({ session, onSignOut }) {
           onEditHeader={() => { setForm({ book: activeSeries }); setSeriesOpen(null); }}
           onDeleteSeries={() => removeSeries(activeSeries)}
           onSaveSub={async (id, fields) => {
-            if (id) await db.updateBook(id, withAutoDates(fields));
+            // The previous row matters to withStatusEffects: it carries the start
+            // date onto a volume being finished, and tells a status that actually
+            // moved from one that was merely re-saved.
+            if (id) await db.updateBook(id, withStatusEffects(fields, activeSeries.books?.find((b) => b.id === id)));
             else await db.createBook({
-              ...withAutoDates(fields), profile_id: activeId, parent_id: activeSeries.id,
+              ...withStatusEffects(fields), profile_id: activeId, parent_id: activeSeries.id,
               series_position: (activeSeries.books?.length ?? 0) + 1,
             });
             await refreshBooks();

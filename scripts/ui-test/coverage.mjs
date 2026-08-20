@@ -341,6 +341,27 @@ try {
     await page.getByText(/UP NEXT|queued/i).first().waitFor({ state: "visible" });
   });
 
+  await step("finishing-a-queued-book-takes-it-out-of-the-queue", async () => {
+    // Up Next is what you have yet to get to, so a book you mark finished has to
+    // leave it. Nothing else clears queue_position, so without this the queue
+    // silently accumulates books that are already done.
+    const queued = () => page.evaluate(() =>
+      (document.querySelector("[data-upnext-drawer]")?.innerText ?? "").includes("Recursion"));
+
+    await addBookManually("Recursion", { status: "wanttoread" });
+    await page.locator("[data-book-card]").filter({ hasText: "Recursion" }).first().click();
+    await page.getByRole("button", { name: /Add to Up Next/ }).click();
+    await page.waitForTimeout(700);
+    if (!(await queued())) throw new Error("Recursion never made it into Up Next");
+
+    await page.locator("[data-book-card]").filter({ hasText: "Recursion" }).first().click();
+    await page.getByRole("button", { name: /^Edit/ }).click();
+    await page.locator('select:has(option[value="wanttoread"])').first().selectOption("read");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForTimeout(900);
+    if (await queued()) throw new Error("a finished book is still sitting in Up Next");
+  });
+
   await step("delete-book", async () => {
     // Delete Dune from its grid card. Scoped to [data-book-card] because the
     // drawer lists the same titles — Dune is being listened to by now, so it

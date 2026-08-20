@@ -14,6 +14,7 @@ import {
   goodreadsSearchUrl,
   placeholderHue,
   cleanBookFields,
+  withStatusEffects,
 } from "../src/lib/bookUtils.js";
 
 // ---- getStatus ----
@@ -195,4 +196,60 @@ test("cleanBookFields nulls out non-positive or non-numeric ratings on non-serie
   assert.equal(cleanBookFields({ rating: -1 }).rating, null);
   assert.equal(cleanBookFields({ rating: "not a number" }).rating, null);
   assert.equal(cleanBookFields({ rating: 4.5 }).rating, 4.5);
+});
+
+// ---- withStatusEffects ----
+
+const NOW = "2026-08-20";
+
+test("withStatusEffects stamps a start date on a book that has just begun", () => {
+  assert.equal(withStatusEffects({ status: "reading" }, null, NOW).date_started, NOW);
+});
+
+test("withStatusEffects leaves dates the caller supplied alone", () => {
+  const out = withStatusEffects({ status: "reading", date_started: "2026-07-01" }, null, NOW);
+  assert.equal(out.date_started, "2026-07-01");
+});
+
+test("withStatusEffects finishing a book keeps the start date it already had", () => {
+  const out = withStatusEffects({ status: "read" }, { date_started: "2026-07-01" }, NOW);
+  assert.equal(out.date_finished, NOW);
+  assert.equal(out.date_started, "2026-07-01", "carried over from the previous row");
+});
+
+// Up Next is what you have yet to start. Moving past that point drops the slot,
+// whichever write path did it — otherwise a finished book keeps sitting in the
+// queue, because nothing else clears queue_position.
+test("withStatusEffects drops the queue slot once a book is started, finished or abandoned", () => {
+  const queued = { status: "wanttoread", queue_position: 3 };
+  for (const status of ["reading", "read", "dnf"]) {
+    assert.equal(withStatusEffects({ ...queued, status }, queued, NOW).queue_position, null, status);
+    // Also on a partial patch that never mentioned the queue, as the MCP write
+    // tools send: the key has to be added for the slot to actually clear.
+    const patch = withStatusEffects({ status }, queued, NOW);
+    assert.ok("queue_position" in patch, `${status} patch clears the slot`);
+    assert.equal(patch.queue_position, null, status);
+  }
+});
+
+test("withStatusEffects keeps the queue slot for statuses that are still ahead of you", () => {
+  for (const status of ["wanttoread", "recommended"]) {
+    assert.equal(withStatusEffects({ status, queue_position: 3 }, null, NOW).queue_position, 3, status);
+    assert.ok(!("queue_position" in withStatusEffects({ status }, null, NOW)), `${status} adds no key`);
+  }
+});
+
+// Queueing a book you have already read is a re-listen — deliberate, and not
+// something an unrelated edit should undo. The form round-trips the whole row,
+// so every save of that book re-sends status "read" alongside the slot.
+test("withStatusEffects keeps the slot when the status was already there", () => {
+  const relisten = { status: "read", queue_position: 2, date_finished: "2026-01-01" };
+  const out = withStatusEffects({ ...relisten, notes: "worth another go" }, relisten, NOW);
+  assert.equal(out.queue_position, 2);
+});
+
+// A patch that says nothing about status says nothing about the queue either.
+test("withStatusEffects leaves the queue alone when the patch carries no status", () => {
+  const out = withStatusEffects({ rating: 5, queue_position: 2 }, { status: "read" }, NOW);
+  assert.equal(out.queue_position, 2);
 });

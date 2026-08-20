@@ -15,7 +15,7 @@
 import { searchBooks, seriesVolumes, libbyAvailability } from "./metadata-core.js";
 import { McpScopeError, assertUuid } from "./mcp-scope.js";
 import {
-  cleanBookFields, withAutoDates, getStatus, calcSeriesRating, titleKey, sameTitle,
+  cleanBookFields, withStatusEffects, getStatus, calcSeriesRating, titleKey, sameTitle,
   audibleSearchUrl, libbySearchUrl, holdWeeksLeft, listenedMinutes, fmtDuration,
   audienceInstruction, ADULT_AUDIENCE_GUIDANCE,
 } from "../../src/lib/bookUtils.js";
@@ -279,7 +279,7 @@ async function shapeBook(scope, input, { seriesId, todayStr, enrich, prev } = {}
     fields.is_series = false;
   }
 
-  const cleaned = cleanBookFields(withAutoDates(fields, prev, todayStr));
+  const cleaned = cleanBookFields(withStatusEffects(fields, prev, todayStr));
   if (!cleaned.title && !prev) throw new McpScopeError("Every book needs a title");
   return cleaned;
 }
@@ -744,7 +744,7 @@ export const TOOLS = [
       const updated = [];
       for (const u of args.updates.slice(0, MAX_BULK)) {
         const prev = await scope.getBook(u.book_id);
-        const patch = cleanBookFields(withAutoDates(u.patch ?? {}, prev, todayStr));
+        const patch = cleanBookFields(withStatusEffects(u.patch ?? {}, prev, todayStr));
         updated.push(await scope.patchBook(u.book_id, patch));
       }
       return { updated: updated.length, books: updated.map(summarise) };
