@@ -7,6 +7,7 @@ import { Dialog, Spinner, Stars, btnPrimary, btnSecondary, inputCls, labelCls } 
 import { fetchRecommendations, friendlyAiError } from "../lib/ai.js";
 import { searchBooks, resultToBook, libbyAvailability } from "../lib/metadata.js";
 import { flattenBooks, libbySearchUrl, sameTitle, audibleSearchUrl } from "../lib/bookUtils.js";
+import { suggestedHoldWeeks } from "../lib/libbyStatus.js";
 import { BookOpen, Plus } from "lucide-react";
 
 // Shown when the user clicks a Libby badge without a library code configured.
@@ -54,8 +55,9 @@ function LibbyBadge({ status, book, libbyKey, onHold }) {
   if (!status) return null;
   const base = "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-bold";
   const href = libbySearchUrl(book, libbyKey);
-  // Suggest the wait Libby already reported, rounded up to whole weeks.
-  const click = () => onHold?.(book, status.waitDays != null ? Math.max(1, Math.ceil(status.waitDays / 7)) : null);
+  // Suggest the wait Libby already reported, rounded up to whole weeks — and
+  // nothing at all when it is on the shelf, since there is no wait to record.
+  const click = () => onHold?.(book, suggestedHoldWeeks(status));
   if (!status.owned)
     return <span className={`${base} bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500`}>NOT ON LIBBY</span>;
   if (status.available)

@@ -617,8 +617,11 @@ export default function App({ session, onSignOut }) {
   // Raised when a Libby link is opened for a book that isn't borrowed yet.
   // Already holding it? Go straight to the editor rather than re-asking.
   // `suggestWeeks` carries Libby's own reported wait from the Recommend tab.
-  const promptHold = (book, suggestWeeks = null) =>
-    setHold({ book, editing: hasHold(book), suggestWeeks });
+  // `chosen` separates the two ways in: the Libby link raises this alongside the
+  // navigation, so it has to ask whether a hold happened at all; the card menu's
+  // "Put on hold" was picked on purpose, so it states what it does instead.
+  const promptHold = (book, suggestWeeks = null, { chosen = false } = {}) =>
+    setHold({ book, editing: hasHold(book), chosen, suggestWeeks });
 
   const startListening = guard(async (book) => {
     await db.updateBook(book.id, { status: "reading", date_started: today(), queue_position: null });
@@ -1214,6 +1217,7 @@ export default function App({ session, onSignOut }) {
         <HoldModal
           book={hold.book}
           editing={hold.editing}
+          chosen={hold.chosen}
           suggestWeeks={hold.suggestWeeks}
           willAdd={!hold.book.id}
           libbyKey={prefs.libby_key}

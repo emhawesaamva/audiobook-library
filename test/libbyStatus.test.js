@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  toLibbyState, isLibbyStale, booksNeedingLibbyCheck, libbyBadge, LIBBY_MAX_AGE_MS,
+  toLibbyState, isLibbyStale, booksNeedingLibbyCheck, libbyBadge, suggestedHoldWeeks, LIBBY_MAX_AGE_MS,
 } from "../src/lib/libbyStatus.js";
 
 test("toLibbyState maps the three OverDrive outcomes", () => {
@@ -121,4 +121,41 @@ test("a recorded hold outranks whatever the catalogue says", () => {
 test("a half-written or cleared hold does not claim one", () => {
   assert.equal(libbyBadge(waiting({ hold_weeks: 8, hold_date: null, libby_state: "absent" })).base, "Audible only");
   assert.equal(libbyBadge(waiting({ hold_weeks: null, hold_date: "2026-08-01", libby_state: "available" })).base, "Libby");
+});
+
+// ---- suggestedHoldWeeks ----
+
+// The one that bit: OverDrive reports a copy on the shelf as estimatedWaitDays 0.
+// It is a number, so it survives a null check, and the >0 floor hold_weeks needs
+// then turns it into a suggested one-week hold — on a book you could just borrow.
+test("suggestedHoldWeeks suggests nothing for a book that is available now", () => {
+  assert.equal(suggestedHoldWeeks({ owned: true, available: true, waitDays: 0 }), null);
+});
+
+test("suggestedHoldWeeks suggests nothing when the library has not got it", () => {
+  assert.equal(suggestedHoldWeeks({ owned: false }), null);
+  assert.equal(suggestedHoldWeeks(null), null);
+  assert.equal(suggestedHoldWeeks(undefined), null);
+});
+
+test("suggestedHoldWeeks rounds a real wait up to whole weeks", () => {
+  const weeks = (waitDays) => suggestedHoldWeeks({ owned: true, available: false, waitDays });
+  assert.equal(weeks(19), 3);
+  assert.equal(weeks(14), 2);
+  assert.equal(weeks(84), 12);
+});
+
+// A wait shorter than a week is still a wait, and hold_weeks cannot be 0.
+test("suggestedHoldWeeks floors a sub-week wait at one week", () => {
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false, waitDays: 3 }), 1);
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false, waitDays: 1 }), 1);
+});
+
+// No estimate is not the same as no wait — leave the field for the user rather
+// than inventing a number. Guard the coercion too: Number(null) is 0.
+test("suggestedHoldWeeks suggests nothing when the estimate is missing", () => {
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false, waitDays: null }), null);
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false, waitDays: "" }), null);
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false }), null);
+  assert.equal(suggestedHoldWeeks({ owned: true, available: false, waitDays: "not a number" }), null);
 });

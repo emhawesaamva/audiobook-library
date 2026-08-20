@@ -1,16 +1,18 @@
-// Asked after a Libby link is opened for a Recommended / Want book, and reused
-// as the editor on the Holds tab. Same form either way — the only differences
-// are the framing copy and whether "Clear hold" is offered.
+// Three ways in, one form. It is *asked* after a Libby link is opened (you may
+// or may not have placed a hold), *chosen* from the card menu's "Put on hold"
+// (you already did, or are about to), and reused as the editor on the Holds tab.
+// Only the framing copy and whether "Clear hold" is offered differ.
 import { useState, useEffect, useRef } from "react";
 import { Dialog, btnPrimary, btnSecondary, inputCls, labelCls } from "./shared.jsx";
-import { hasHold, holdWeeksLeft } from "../lib/bookUtils.js";
+import { hasHold, holdWeeksLeft, libbySearchUrl } from "../lib/bookUtils.js";
 import { libbyAvailability } from "../lib/metadata.js";
-import { Clock } from "lucide-react";
+import { suggestedHoldWeeks } from "../lib/libbyStatus.js";
+import { Clock, ExternalLink } from "lucide-react";
 
 // Common Libby quotes, so the usual answer is one click rather than typing.
 const PRESETS = [1, 2, 4, 8, 12, 20];
 
-export default function HoldModal({ book, editing = false, suggestWeeks = null, willAdd = false, libbyKey = null, onSave, onClear, onClose }) {
+export default function HoldModal({ book, editing = false, chosen = false, suggestWeeks = null, willAdd = false, libbyKey = null, onSave, onClear, onClose }) {
   const existing = hasHold(book);
   const [weeks, setWeeks] = useState(
     existing ? String(book.hold_weeks) : suggestWeeks ? String(suggestWeeks) : ""
@@ -34,9 +36,8 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
         if (cancelled) return;
         setAvail(s);
         setAvailState("done");
-        if (!touched.current && s?.owned && s.waitDays != null) {
-          setWeeks(String(Math.max(1, Math.ceil(s.waitDays / 7))));
-        }
+        const suggested = suggestedHoldWeeks(s);
+        if (!touched.current && suggested != null) setWeeks(String(suggested));
       })
       .catch(() => !cancelled && setAvailState("error"));
     return () => { cancelled = true; };
@@ -60,7 +61,7 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
   return (
     // Elevated: this prompt is triggered from elsewhere — including from inside
     // the series panel — so it has to sit above whatever opened it.
-    <Dialog title={editing ? "Edit hold" : "Did you put this book on hold?"} onClose={onClose} elevated>
+    <Dialog title={editing ? "Edit hold" : chosen ? "Put this book on hold" : "Did you put this book on hold?"} onClose={onClose} elevated>
       <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/60">
         <Clock className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
         <div className="min-w-0">
@@ -79,11 +80,28 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
         {editing
           ? "Update the wait Libby quoted, or clear the hold if it came through or you cancelled it."
+          : chosen
+          // Said plainly, because the button that opened this cannot do it for
+          // you: holds are placed in Libby, and recorded here so the wait counts
+          // down somewhere you will actually look. The link goes with the
+          // sentence — being told to go to Libby without a way there is a dead
+          // end, and the menu that opened this is already gone.
+          ? "Place the hold in Libby, then record the wait it quoted — this book moves to your Libby Holds tab and counts down from today."
           : "If you placed a hold, record the wait Libby quoted and this book moves to your Libby Holds tab, counting down from today."}
         {willAdd && !editing && (
           <> It&rsquo;ll be added to your library as <strong>Want to Listen</strong>.</>
         )}
       </p>
+      {chosen && !editing && (
+        <a
+          href={libbySearchUrl(book, libbyKey)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-700 underline underline-offset-2 hover:no-underline dark:text-accent-400"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Open it in Libby
+        </a>
+      )}
       {!existing && <AvailabilityNote state={availState} avail={avail} seeded={suggestWeeks != null} />}
 
       <label className={labelCls} htmlFor="hold-weeks">About how many weeks wait?</label>
@@ -121,10 +139,10 @@ export default function HoldModal({ book, editing = false, suggestWeeks = null, 
 
       <div className="flex items-center gap-2">
         <button onClick={submit} disabled={!valid || busy} className={btnPrimary}>
-          {editing ? "Save hold" : "Yes, save hold"}
+          {editing || chosen ? "Save hold" : "Yes, save hold"}
         </button>
         <button onClick={onClose} disabled={busy} className={btnSecondary}>
-          {editing ? "Cancel" : "No, I didn't"}
+          {editing || chosen ? "Cancel" : "No, I didn't"}
         </button>
         {existing && onClear && (
           <button

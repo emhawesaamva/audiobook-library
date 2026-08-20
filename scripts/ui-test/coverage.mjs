@@ -419,6 +419,27 @@ try {
     await page.getByRole("button", { name: "Library", exact: true }).click();
   });
 
+  await step("hold-from-the-card-menu", async () => {
+    // The other way in: the pill says there's a wait, so the menu it sits above
+    // offers the hold directly rather than only as the question that follows the
+    // Libby link. Cancels rather than saves — the save path is covered above, and
+    // the next step needs Piranesi hold-free.
+    await page.getByPlaceholder(/Search title/).fill("Piranesi");
+    await page.waitForTimeout(500);
+    await page.locator("[data-book-card]").filter({ hasText: "Piranesi" }).first().click();
+    const menu = page.locator("[data-book-menu]").first();
+    if (!/Put on hold/.test(await menu.innerText())) throw new Error("no hold option in the card menu");
+
+    await page.getByRole("button", { name: /Put on hold/ }).click();
+    await page.getByText("Put this book on hold").waitFor({ state: "visible" });
+    // It cannot place the hold for you, so it has to hand you the way there.
+    await page.getByRole("link", { name: /Open it in Libby/ }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByText("Put this book on hold").waitFor({ state: "hidden" });
+    await page.getByPlaceholder(/Search title/).fill("");
+    await page.waitForTimeout(400);
+  });
+
   await step("borrowed-clears-the-hold-starts-it-and-leaves-the-queue", async () => {
     // The moment a hold resolves. One button doing three things, so all three
     // get checked: the hold is gone, the book is being listened to now, and it
