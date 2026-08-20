@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isCreditExhaustedError,
   anthropicToGeminiRequest,
+  GEMINI_MIN_OUTPUT_TOKENS,
   geminiToAnthropicResponse,
   handleMessages,
 } from "../api/_lib/messages-core.js";
@@ -57,9 +58,12 @@ test("isCreditExhaustedError ignores other errors and statuses", () => {
 });
 
 test("anthropicToGeminiRequest maps system, roles, and max_tokens", () => {
+  // 4000 rather than an arbitrary small number: anything under
+  // GEMINI_MIN_OUTPUT_TOKENS is raised to the floor now, which is its own test
+  // above. This one is about the mapping.
   const out = anthropicToGeminiRequest({
     model: "claude-sonnet-4-6",
-    max_tokens: 1234,
+    max_tokens: 4000,
     system: "You are a recommender.",
     messages: [
       { role: "user", content: "hello" },
@@ -68,7 +72,7 @@ test("anthropicToGeminiRequest maps system, roles, and max_tokens", () => {
     ],
   });
   assert.deepEqual(out.system_instruction, { parts: [{ text: "You are a recommender." }] });
-  assert.equal(out.generationConfig.maxOutputTokens, 1234);
+  assert.equal(out.generationConfig.maxOutputTokens, 4000);
   assert.deepEqual(out.contents, [
     { role: "user", parts: [{ text: "hello" }] },
     { role: "model", parts: [{ text: "hi there" }] },
@@ -82,6 +86,44 @@ test("anthropicToGeminiRequest flattens array content to text parts", () => {
   });
   assert.deepEqual(out.contents, [{ role: "user", parts: [{ text: "a\nb" }] }]);
   assert.equal(out.system_instruction, undefined);
+});
+
+test("a small max_tokens is floored, because thinking is charged against it", () => {
+  // The bug this fixes: the admin connection test asks for 32 tokens, Gemini
+  // spends them thinking, and the answer comes back empty. maxOutputTokens is a
+  // cap rather than a target — the real answer used 13 tokens — so raising it
+  // costs nothing when thinking stays short.
+  const small = anthropicToGeminiRequest({ max_tokens: 32, messages: [{ role: "user", content: "hi" }] });
+  assert.equal(small.generationConfig.maxOutputTokens, GEMINI_MIN_OUTPUT_TOKENS);
+
+  // A caller asking for more than the floor keeps what it asked for.
+  const big = anthropicToGeminiRequest({ max_tokens: 4000, messages: [{ role: "user", content: "hi" }] });
+  assert.equal(big.generationConfig.maxOutputTokens, 4000);
+
+  // Both thinking parameters go out: thinkingBudget for 2.5, thinkingLevel for 3.
+  assert.equal(small.generationConfig.thinkingConfig.thinkingBudget, 0);
+  assert.equal(small.generationConfig.thinkingConfig.thinkingLevel, "low");
+});
+
+test("an empty Gemini response says WHY it was empty", () => {
+  // "returned no content" on its own sent us checking the API key, when the
+  // answer was in finishReason all along.
+  const starved = geminiToAnthropicResponse({
+    candidates: [{ content: { parts: [] }, finishReason: "MAX_TOKENS" }],
+  });
+  assert.match(starved.error.message, /token budget went on thinking/);
+
+  const blocked = geminiToAnthropicResponse({
+    candidates: [{ content: { parts: [] } }],
+    promptFeedback: { blockReason: "SAFETY" },
+  });
+  assert.match(blocked.error.message, /blocked: SAFETY/);
+
+  // An explicit API error still wins — it is more specific than anything we infer.
+  assert.equal(
+    geminiToAnthropicResponse({ error: { message: "API key not valid" } }).error.message,
+    "API key not valid"
+  );
 });
 
 test("geminiToAnthropicResponse extracts text into Anthropic shape", () => {

@@ -35,6 +35,11 @@ export function isCreditExhaustedError(status, data) {
   return status === 400 && /credit balance is too low/i.test(data?.error?.message ?? "");
 }
 
+// Enough headroom for the model to think and still answer. Chosen because the
+// observed failure was a 32-token request returning nothing while the answer
+// itself needed 13.
+export const GEMINI_MIN_OUTPUT_TOKENS = 2048;
+
 // Map an Anthropic Messages request onto a Gemini generateContent request.
 // None of the app's calls use tools, so this is plain system + messages.
 export function anthropicToGeminiRequest(body) {
@@ -60,12 +65,28 @@ export function anthropicToGeminiRequest(body) {
     out.contents.push({ role: m.role === "assistant" ? "model" : "user", parts: [{ text }] });
   }
 
-  // gemini-flash-latest resolves to a thinking model; disable thinking so the
-  // whole token budget produces the answer (these are JSON-extraction tasks that
-  // don't need reasoning, and thinking can otherwise consume max_tokens and
-  // return empty content).
-  out.generationConfig = { thinkingConfig: { thinkingBudget: 0 } };
-  if (body.max_tokens) out.generationConfig.maxOutputTokens = body.max_tokens;
+  // gemini-flash-latest resolves to a thinking model, and thinking tokens are
+  // charged against maxOutputTokens — so a small budget gets spent reasoning and
+  // the response comes back with no text at all.
+  //
+  // thinkingBudget: 0 used to switch it off. It no longer does: the alias now
+  // resolves to a Gemini 3 flash, which takes `thinkingLevel` instead and
+  // cannot have thinking fully disabled. The old field is ignored silently
+  // rather than rejected, which is why this failed as an empty answer rather
+  // than an error. Send both, so whichever generation the alias points at gets
+  // an instruction it understands.
+  out.generationConfig = {
+    thinkingConfig: { thinkingBudget: 0, thinkingLevel: "low" },
+  };
+
+  // A floor, because the parameters above are best-effort and the accounting is
+  // not ours to control. The caller's max_tokens is sized for Anthropic, where
+  // it bounds the answer alone; here it must also cover whatever the model
+  // spends thinking. maxOutputTokens is a cap and not a target — the admin
+  // connection test asks for 32 and a real answer used 13 — so raising it costs
+  // nothing when thinking stays short, and is the difference between an answer
+  // and silence when it doesn't.
+  out.generationConfig.maxOutputTokens = Math.max(Number(body.max_tokens) || 0, GEMINI_MIN_OUTPUT_TOKENS);
   return out;
 }
 
@@ -76,11 +97,24 @@ export function geminiToAnthropicResponse(data) {
   const parts = data?.candidates?.[0]?.content?.parts ?? [];
   const text = parts.map((p) => p.text ?? "").join("").trim();
   if (!text) {
+    // "returned no content" on its own sent us looking at the API key when the
+    // real answer was sitting in finishReason. Say which it was.
+    const finish = data?.candidates?.[0]?.finishReason;
+    const blocked = data?.promptFeedback?.blockReason;
+    const why = blocked
+      ? `blocked: ${blocked}`
+      : finish === "MAX_TOKENS"
+        ? "the whole token budget went on thinking before any answer was written"
+        : finish
+          ? `finishReason: ${finish}`
+          : null;
     return {
       type: "error",
       error: {
         type: "api_error",
-        message: data?.error?.message || "Gemini fallback returned no content",
+        message:
+          data?.error?.message ||
+          (why ? `Gemini fallback returned no content — ${why}` : "Gemini fallback returned no content"),
       },
     };
   }
@@ -124,12 +158,29 @@ async function flagCreditExhausted(supabaseUrl, secretKey) {
 }
 
 export async function callGemini(body, geminiKey) {
-  const r = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-goog-api-key": geminiKey },
-    body: JSON.stringify(anthropicToGeminiRequest(body)),
-  });
-  return geminiToAnthropicResponse(await r.json());
+  const post = (payload) =>
+    fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-goog-api-key": geminiKey },
+      body: JSON.stringify(payload),
+    });
+
+  const request = anthropicToGeminiRequest(body);
+  let r = await post(request);
+  let data = await r.json();
+
+  // The thinking parameters are a moving target: thinkingBudget was silently
+  // dropped when the alias moved to a Gemini 3 model, and thinkingLevel could
+  // go the same way or be rejected outright on some future generation. This is
+  // the emergency path that runs when Anthropic credit is gone, so it must
+  // degrade rather than fail — retry once without the thinking config, keeping
+  // the token floor that is doing the real work.
+  if (!r.ok && /thinking/i.test(data?.error?.message ?? "")) {
+    const { thinkingConfig, ...rest } = request.generationConfig;
+    r = await post({ ...request, generationConfig: rest });
+    data = await r.json();
+  }
+  return geminiToAnthropicResponse(data);
 }
 
 export async function handleMessages(req, res, { anthropicKey, geminiKey, supabaseUrl, supabaseSecret, forceGemini } = {}) {
