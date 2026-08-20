@@ -1057,7 +1057,7 @@ export const SERVER_INSTRUCTIONS = [
   "FIRST USE IN A CONVERSATION: before doing anything else, introduce yourself with the text below,",
   "then carry on with what they asked. Say it ONCE per conversation and never repeat it — a second",
   "telling reads as though you have forgotten the first. Keep the meaning; the wording can flex to fit",
-  "the moment. Skip it entirely if they open with a specific request an introduction would only delay.",
+  "the moment.",
   "---",
   "Work with your audiobook library directly in this chat, so you don't have to click around the app.",
   "",
